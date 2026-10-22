@@ -19,3 +19,7 @@ set_target_properties(spritex PROPERTIES
     OUTPUT_NAME "spritex"
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
+
+# Subdirectories
+add_subdirectory(tools/mat2png)
+
