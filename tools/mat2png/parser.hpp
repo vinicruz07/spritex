@@ -24,13 +24,15 @@ struct Matrix {
 
 struct ParseResult {
     bool success{false};
+    bool wasRepaired{false};
     std::string error;
+    std::string warning;
     Matrix matrix;
 };
 
 class MatrixParser {
 public:
-    static ParseResult parse(const std::string& input) {
+    static ParseResult parse(const std::string& input, bool autoRepair = true) {
         ParseResult result;
 
         if (input.empty()) {
@@ -62,23 +64,79 @@ public:
             return result;
         }
 
-        size_t expectedWidth = rows[0].size();
-        if (expectedWidth == 0) {
-            result.error = "First row is empty.";
-            return result;
+        // Determine target width by modal (most common) row size
+        std::vector<size_t> rowSizes;
+        rowSizes.reserve(rows.size());
+        size_t maxLen = 0;
+        for (const auto& r : rows) {
+            rowSizes.push_back(r.size());
+            if (r.size() > maxLen) maxLen = r.size();
         }
 
-        for (size_t r = 0; r < rows.size(); ++r) {
-            if (rows[r].size() != expectedWidth) {
-                result.error = "Matrix row dimension mismatch: row 0 has " +
-                               std::to_string(expectedWidth) +
-                               " elements, but row " + std::to_string(r) +
-                               " has " + std::to_string(rows[r].size()) + " elements.";
-                return result;
+        // Count frequency of each row size
+        std::vector<size_t> freq(maxLen + 1, 0);
+        for (size_t s : rowSizes) {
+            freq[s]++;
+        }
+
+        size_t targetWidth = 0;
+        size_t maxFreq = 0;
+        for (size_t s = 1; s <= maxLen; ++s) {
+            if (freq[s] > maxFreq) {
+                maxFreq = freq[s];
+                targetWidth = s;
             }
         }
 
-        result.matrix.width = expectedWidth;
+        if (targetWidth == 0) {
+            result.error = "First row is empty or invalid.";
+            return result;
+        }
+
+        size_t mismatchCount = 0;
+        int firstMismatchRow = -1;
+        size_t firstMismatchSize = 0;
+
+        for (size_t r = 0; r < rows.size(); ++r) {
+            if (rows[r].size() != targetWidth) {
+                if (firstMismatchRow == -1) {
+                    firstMismatchRow = static_cast<int>(r);
+                    firstMismatchSize = rows[r].size();
+                }
+                mismatchCount++;
+
+                if (autoRepair) {
+                    if (rows[r].size() < targetWidth) {
+                        rows[r].resize(targetWidth, 0); // Pad missing tokens with 0 (transparent)
+                    } else {
+                        rows[r].resize(targetWidth);    // Truncate excess tokens
+                    }
+                }
+            }
+        }
+
+        if (mismatchCount > 0) {
+            if (!autoRepair) {
+                result.error = "Matrix row dimension mismatch: expected " +
+                               std::to_string(targetWidth) +
+                               " elements, but row " + std::to_string(firstMismatchRow) +
+                               " has " + std::to_string(firstMismatchSize) + " elements.";
+                return result;
+            } else {
+                result.wasRepaired = true;
+                if (mismatchCount == 1) {
+                    result.warning = "Linha " + std::to_string(firstMismatchRow) +
+                                     " tinha " + std::to_string(firstMismatchSize) +
+                                     " tokens (auto-ajustada para " + std::to_string(targetWidth) + ")";
+                } else {
+                    result.warning = std::to_string(mismatchCount) +
+                                     " linhas auto-ajustadas para " + std::to_string(targetWidth) +
+                                     " tokens (ex: linha " + std::to_string(firstMismatchRow) + ")";
+                }
+            }
+        }
+
+        result.matrix.width = targetWidth;
         result.matrix.height = rows.size();
         result.matrix.data.reserve(result.matrix.width * result.matrix.height);
         for (const auto& row : rows) {
@@ -87,6 +145,22 @@ public:
 
         result.success = true;
         return result;
+    }
+
+    static std::string format_matrix(const Matrix& m) {
+        if (m.empty()) return "";
+        std::stringstream ss;
+        for (size_t y = 0; y < m.height; ++y) {
+            ss << "[";
+            for (size_t x = 0; x < m.width; ++x) {
+                if (x > 0) ss << ",";
+                uint8_t val = m.at(x, y);
+                if (val < 10) ss << "0";
+                ss << static_cast<int>(val);
+            }
+            ss << "]\r\n";
+        }
+        return ss.str();
     }
 
 private:

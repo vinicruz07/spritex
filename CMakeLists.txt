@@ -22,4 +22,5 @@ set_target_properties(spritex PROPERTIES
 
 # Subdirectories
 add_subdirectory(tools/mat2png)
+add_subdirectory(tools/mat2png_gui)
 
