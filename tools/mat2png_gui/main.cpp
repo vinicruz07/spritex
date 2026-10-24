@@ -18,6 +18,7 @@
 #include <sstream>
 #include <iomanip>
 #include <chrono>
+#include <algorithm>
 
 // Enable modern visual styles
 #pragma comment(linker, "\"/manifestdependency:type='win32' \
@@ -26,25 +27,41 @@ processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 
 namespace {
 
+enum class ActiveTab {
+    MatrixToPng = 0,
+    PngToPixelArt = 1
+};
+
 // UI Control IDs
-constexpr int ID_BTN_PASTE     = 1001;
-constexpr int ID_BTN_SAMPLE32  = 1002;
-constexpr int ID_BTN_SAMPLE16  = 1003;
-constexpr int ID_BTN_CLEAR     = 1004;
-constexpr int ID_EDIT_MATRIX   = 1005;
-constexpr int ID_CANVAS        = 1006;
-constexpr int ID_COMBO_SCALE   = 1007;
-constexpr int ID_CHK_GRID      = 1008;
-constexpr int ID_BTN_EXPORT_HD = 1009;
-constexpr int ID_BTN_EXPORT_1X = 1010;
-constexpr int ID_BTN_COPY_IMG  = 1011;
-constexpr int ID_PALETTE_BAR   = 1012;
-constexpr int ID_BTN_FIX_MATRIX = 1013;
-constexpr int ID_BTN_IMPORT_IMG = 1014;
-constexpr int ID_BTN_REMOVE_BG  = 1015;
-constexpr int ID_BTN_RES16      = 1016;
-constexpr int ID_BTN_RES32      = 1017;
-constexpr int ID_BTN_RES64      = 1018;
+constexpr int ID_TAB_MAT2PNG      = 1000;
+constexpr int ID_TAB_PNG2MAT      = 1001;
+
+// Tab 1: Matriz -> PNG
+constexpr int ID_BTN_PASTE        = 1002;
+constexpr int ID_BTN_FIX_MATRIX   = 1003;
+constexpr int ID_BTN_REMBG_TAB1   = 1004;
+constexpr int ID_BTN_CLEAR        = 1005;
+constexpr int ID_BTN_SAMPLE32     = 1006;
+constexpr int ID_BTN_SAMPLE16     = 1007;
+constexpr int ID_EDIT_MATRIX      = 1008;
+
+// Tab 2: PNG -> Pixel Art
+constexpr int ID_BTN_TAB2_IMPORT  = 1010;
+constexpr int ID_BTN_RES16        = 1011;
+constexpr int ID_BTN_RES32        = 1012;
+constexpr int ID_BTN_RES64        = 1013;
+constexpr int ID_BTN_TAB2_REMBG   = 1014;
+constexpr int ID_BTN_TAB2_COPYMAT = 1015;
+constexpr int ID_BTN_TAB2_TO_EDIT = 1016;
+
+// Shared Canvas Controls
+constexpr int ID_CANVAS           = 1030;
+constexpr int ID_COMBO_SCALE      = 1031;
+constexpr int ID_CHK_GRID         = 1032;
+constexpr int ID_BTN_EXPORT_HD    = 1033;
+constexpr int ID_BTN_EXPORT_1X    = 1034;
+constexpr int ID_BTN_COPY_IMG     = 1035;
+constexpr int ID_PALETTE_BAR      = 1036;
 
 // Dark Theme Colors
 const COLORREF COLOR_BG_MAIN     = RGB(22, 24, 34);     // Deep Slate
@@ -57,29 +74,53 @@ const COLORREF COLOR_WARNING     = RGB(247, 118, 34);   // Flame Orange
 const COLORREF COLOR_ERROR       = RGB(217, 87, 99);    // Coral Red
 const COLORREF COLOR_TEXT_MUTED  = RGB(132, 126, 135);  // Stone Grey
 
+// Active Tab State
+ActiveTab g_activeTab = ActiveTab::MatrixToPng;
+
 // Global Windows & Handles
-HWND g_hWndMain       = nullptr;
-HWND g_hEditMatrix    = nullptr;
-HWND g_hCanvas        = nullptr;
-HWND g_hStatusMatrix  = nullptr;
-HWND g_hStatusPixel   = nullptr;
-HWND g_hComboScale    = nullptr;
-HWND g_hChkGrid       = nullptr;
-HWND g_hPaletteBar    = nullptr;
-HWND g_hBtnRes16      = nullptr;
-HWND g_hBtnRes32      = nullptr;
-HWND g_hBtnRes64      = nullptr;
+HWND g_hWndMain          = nullptr;
 
-int  g_targetResolution = 32;
-std::string g_lastImportedFile;
+// Tab Selector Buttons
+HWND g_hBtnTabMat2Png    = nullptr;
+HWND g_hBtnTabPng2Mat    = nullptr;
 
-HBRUSH g_hBrushMain   = nullptr;
-HBRUSH g_hBrushPanel  = nullptr;
-HBRUSH g_hBrushEdit   = nullptr;
-HFONT  g_hFontMono    = nullptr;
-HFONT  g_hFontUI      = nullptr;
-HFONT  g_hFontUIBold  = nullptr;
-HFONT  g_hFontSmall   = nullptr;
+// Tab 1 Controls
+HWND g_hBtnPaste         = nullptr;
+HWND g_hBtnFix           = nullptr;
+HWND g_hBtnRemBg1        = nullptr;
+HWND g_hBtnClear         = nullptr;
+HWND g_hBtnSample32      = nullptr;
+HWND g_hBtnSample16      = nullptr;
+HWND g_hEditMatrix       = nullptr;
+HWND g_hStatusMatrix     = nullptr;
+
+// Tab 2 Controls
+HWND g_hTab2BtnImport    = nullptr;
+HWND g_hTab2LblFile      = nullptr;
+HWND g_hTab2LblResHeader = nullptr;
+HWND g_hTab2BtnRes16     = nullptr;
+HWND g_hTab2BtnRes32     = nullptr;
+HWND g_hTab2BtnRes64     = nullptr;
+HWND g_hTab2BtnRemBg     = nullptr;
+HWND g_hTab2LblBgTip     = nullptr;
+HWND g_hTab2LblStats     = nullptr;
+HWND g_hTab2BtnCopyMat   = nullptr;
+HWND g_hTab2BtnToEditor  = nullptr;
+
+// Shared Canvas Controls
+HWND g_hCanvas           = nullptr;
+HWND g_hStatusPixel      = nullptr;
+HWND g_hComboScale       = nullptr;
+HWND g_hChkGrid          = nullptr;
+HWND g_hPaletteBar       = nullptr;
+
+HBRUSH g_hBrushMain      = nullptr;
+HBRUSH g_hBrushPanel     = nullptr;
+HBRUSH g_hBrushEdit      = nullptr;
+HFONT  g_hFontMono       = nullptr;
+HFONT  g_hFontUI         = nullptr;
+HFONT  g_hFontUIBold     = nullptr;
+HFONT  g_hFontSmall      = nullptr;
 
 // State Variables
 spritex::tools::Matrix g_matrix;
@@ -93,6 +134,9 @@ int g_hoverPixelX = -1;
 int g_hoverPixelY = -1;
 int g_hoverSwatch = -1;
 double g_lastRenderMs = 0.0;
+
+int g_targetResolution = 32;
+std::string g_lastImportedFile;
 
 // Embedded Samples
 const char* const SAMPLE_32X32 =
@@ -151,12 +195,14 @@ const char* const SAMPLE_16X16 =
 LRESULT CALLBACK WndProcMain(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK WndProcCanvas(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK WndProcPalette(HWND, UINT, WPARAM, LPARAM);
+void SwitchTab(ActiveTab newTab);
+void UpdateTab2Stats(const std::string& filePath, int origW, int origH, int targetRes, size_t uniqueColors, double timeMs);
+void UpdateResolutionButtonsUI(int res);
+void SetResolution(int res);
+void RemoveBackground();
 void UpdateMatrixFromEditor();
 void ExportPNG(int scale);
 void CopyImageToClipboard();
-void RemoveBackground();
-void SetResolution(int res);
-void UpdateResolutionButtonsUI(int res);
 
 // Helper to set clipboard text
 void SetClipboardText(const std::string& text) {
@@ -192,38 +238,35 @@ std::string GetClipboardText() {
 
 } // namespace
 
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
-    // Set Windows console/process code page
-    SetConsoleOutputCP(CP_UTF8);
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+    // Initialize common controls
+    INITCOMMONCONTROLSEX icc = {};
+    icc.dwSize = sizeof(icc);
+    icc.dwICC  = ICC_STANDARD_CLASSES | ICC_WIN95_CLASSES;
+    InitCommonControlsEx(&icc);
 
-    // Initialize Common Controls
-    INITCOMMONCONTROLSEX icex;
-    icex.dwSize = sizeof(INITCOMMONCONTROLSEX);
-    icex.dwICC = ICC_STANDARD_CLASSES | ICC_WIN95_CLASSES;
-    InitCommonControlsEx(&icex);
-
-    // Create Dark Brushes
+    // Create GDI Brushes & Fonts
     g_hBrushMain  = CreateSolidBrush(COLOR_BG_MAIN);
     g_hBrushPanel = CreateSolidBrush(COLOR_BG_PANEL);
     g_hBrushEdit  = CreateSolidBrush(COLOR_BG_EDIT);
 
-    // Create Fonts
     g_hFontMono   = CreateFontA(-13, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                 ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                 CLEARTYPE_QUALITY, FIXED_PITCH | FF_MODERN, "Consolas");
     g_hFontUI     = CreateFontA(-13, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-                                DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                 CLEARTYPE_QUALITY, VARIABLE_PITCH | FF_SWISS, "Segoe UI");
-    g_hFontUIBold = CreateFontA(-14, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
-                                DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+    g_hFontUIBold = CreateFontA(-13, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+                                ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                 CLEARTYPE_QUALITY, VARIABLE_PITCH | FF_SWISS, "Segoe UI");
     g_hFontSmall  = CreateFontA(-11, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-                                DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                 CLEARTYPE_QUALITY, VARIABLE_PITCH | FF_SWISS, "Segoe UI");
 
     // Register Window Classes
     WNDCLASSEXA wcMain = {};
-    wcMain.cbSize        = sizeof(WNDCLASSEXA);
+    wcMain.cbSize        = sizeof(wcMain);
+    wcMain.style         = CS_HREDRAW | CS_VREDRAW;
     wcMain.lpfnWndProc   = WndProcMain;
     wcMain.hInstance     = hInstance;
     wcMain.hCursor       = LoadCursor(NULL, IDC_ARROW);
@@ -232,7 +275,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     RegisterClassExA(&wcMain);
 
     WNDCLASSEXA wcCanvas = {};
-    wcCanvas.cbSize        = sizeof(WNDCLASSEXA);
+    wcCanvas.cbSize        = sizeof(wcCanvas);
+    wcCanvas.style         = CS_HREDRAW | CS_VREDRAW;
     wcCanvas.lpfnWndProc   = WndProcCanvas;
     wcCanvas.hInstance     = hInstance;
     wcCanvas.hCursor       = LoadCursor(NULL, IDC_CROSS);
@@ -241,20 +285,21 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     RegisterClassExA(&wcCanvas);
 
     WNDCLASSEXA wcPalette = {};
-    wcPalette.cbSize        = sizeof(WNDCLASSEXA);
+    wcPalette.cbSize        = sizeof(wcPalette);
+    wcPalette.style         = CS_HREDRAW | CS_VREDRAW;
     wcPalette.lpfnWndProc   = WndProcPalette;
     wcPalette.hInstance     = hInstance;
     wcPalette.hCursor       = LoadCursor(NULL, IDC_HAND);
-    wcPalette.hbrBackground = g_hBrushPanel;
+    wcPalette.hbrBackground = g_hBrushMain;
     wcPalette.lpszClassName = "SpritexPaletteClass";
     RegisterClassExA(&wcPalette);
 
     // Create Main Window
     g_hWndMain = CreateWindowExA(
         0, "SpritexMainClass",
-        "spritex Studio - Visualizador & Editor Interativo de Pixel Art (DB32)",
+        "spritex Studio - Visualizador & Editor de Pixel Art (DB32)",
         WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
-        CW_USEDEFAULT, CW_USEDEFAULT, 1160, 820,
+        CW_USEDEFAULT, CW_USEDEFAULT, 1180, 840,
         NULL, NULL, hInstance, NULL
     );
 
@@ -266,6 +311,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     // Preload 32x32 sample
     SetWindowTextA(g_hEditMatrix, SAMPLE_32X32);
     UpdateMatrixFromEditor();
+    SwitchTab(ActiveTab::MatrixToPng);
 
     // Message Loop
     MSG msg;
@@ -293,88 +339,140 @@ LRESULT CALLBACK WndProcMain(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         case WM_CREATE: {
             HINSTANCE hInst = ((LPCREATESTRUCT)lParam)->hInstance;
 
-            // 1. Left Action Buttons
-            // Row 1: Core Action Buttons
-            HWND hBtnImport = CreateWindowExA(0, "BUTTON", "Importar Imagem",
+            // ==========================================
+            // TOP TAB SELECTOR BAR
+            // ==========================================
+            g_hBtnTabMat2Png = CreateWindowExA(0, "BUTTON", "[ Matriz -> PNG ]",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                20, 14, 130, 28, hWnd, (HMENU)ID_BTN_IMPORT_IMG, hInst, NULL);
-            SendMessage(hBtnImport, WM_SETFONT, (WPARAM)g_hFontUIBold, TRUE);
+                20, 12, 175, 30, hWnd, (HMENU)ID_TAB_MAT2PNG, hInst, NULL);
+            SendMessage(g_hBtnTabMat2Png, WM_SETFONT, (WPARAM)g_hFontUIBold, TRUE);
 
-            HWND hBtnRemBg = CreateWindowExA(0, "BUTTON", "Remover Fundo",
+            g_hBtnTabPng2Mat = CreateWindowExA(0, "BUTTON", "PNG -> Pixel Art",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                155, 14, 120, 28, hWnd, (HMENU)ID_BTN_REMOVE_BG, hInst, NULL);
-            SendMessage(hBtnRemBg, WM_SETFONT, (WPARAM)g_hFontUIBold, TRUE);
+                200, 12, 175, 30, hWnd, (HMENU)ID_TAB_PNG2MAT, hInst, NULL);
+            SendMessage(g_hBtnTabPng2Mat, WM_SETFONT, (WPARAM)g_hFontUIBold, TRUE);
 
-            HWND hBtnPaste = CreateWindowExA(0, "BUTTON", "Colar",
+            // ==========================================
+            // TAB 1 CONTROLS: MATRIZ -> PNG
+            // ==========================================
+            g_hBtnPaste = CreateWindowExA(0, "BUTTON", "Colar",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                280, 14, 55, 28, hWnd, (HMENU)ID_BTN_PASTE, hInst, NULL);
-            SendMessage(hBtnPaste, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
+                20, 50, 55, 28, hWnd, (HMENU)ID_BTN_PASTE, hInst, NULL);
+            SendMessage(g_hBtnPaste, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
 
-            HWND hBtnFix = CreateWindowExA(0, "BUTTON", "Auto-Ajustar",
+            g_hBtnFix = CreateWindowExA(0, "BUTTON", "Auto-Ajustar",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                340, 14, 95, 28, hWnd, (HMENU)ID_BTN_FIX_MATRIX, hInst, NULL);
-            SendMessage(hBtnFix, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
+                80, 50, 90, 28, hWnd, (HMENU)ID_BTN_FIX_MATRIX, hInst, NULL);
+            SendMessage(g_hBtnFix, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
 
-            HWND hBtnClr = CreateWindowExA(0, "BUTTON", "Limpar",
+            g_hBtnRemBg1 = CreateWindowExA(0, "BUTTON", "Remover Fundo",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                440, 14, 65, 28, hWnd, (HMENU)ID_BTN_CLEAR, hInst, NULL);
-            SendMessage(hBtnClr, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
+                175, 50, 110, 28, hWnd, (HMENU)ID_BTN_REMBG_TAB1, hInst, NULL);
+            SendMessage(g_hBtnRemBg1, WM_SETFONT, (WPARAM)g_hFontUIBold, TRUE);
 
-            // Row 2: Resolution Selectors & Presets
-            HWND hLblRes = CreateWindowExA(0, "STATIC", "Tamanho:",
-                WS_CHILD | WS_VISIBLE,
-                20, 52, 65, 22, hWnd, NULL, hInst, NULL);
-            SendMessage(hLblRes, WM_SETFONT, (WPARAM)g_hFontUIBold, TRUE);
-
-            g_hBtnRes16 = CreateWindowExA(0, "BUTTON", "16x16",
+            g_hBtnClear = CreateWindowExA(0, "BUTTON", "Limpar",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                88, 48, 72, 26, hWnd, (HMENU)ID_BTN_RES16, hInst, NULL);
-            SendMessage(g_hBtnRes16, WM_SETFONT, (WPARAM)g_hFontUIBold, TRUE);
+                290, 50, 55, 28, hWnd, (HMENU)ID_BTN_CLEAR, hInst, NULL);
+            SendMessage(g_hBtnClear, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
 
-            g_hBtnRes32 = CreateWindowExA(0, "BUTTON", "[ 32x32 ]",
+            g_hBtnSample32 = CreateWindowExA(0, "BUTTON", "Exemplo 32x",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                164, 48, 72, 26, hWnd, (HMENU)ID_BTN_RES32, hInst, NULL);
-            SendMessage(g_hBtnRes32, WM_SETFONT, (WPARAM)g_hFontUIBold, TRUE);
+                350, 50, 95, 28, hWnd, (HMENU)ID_BTN_SAMPLE32, hInst, NULL);
+            SendMessage(g_hBtnSample32, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
 
-            g_hBtnRes64 = CreateWindowExA(0, "BUTTON", "64x64",
+            g_hBtnSample16 = CreateWindowExA(0, "BUTTON", "Exemplo 16x",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                240, 48, 72, 26, hWnd, (HMENU)ID_BTN_RES64, hInst, NULL);
-            SendMessage(g_hBtnRes64, WM_SETFONT, (WPARAM)g_hFontUIBold, TRUE);
+                450, 50, 90, 28, hWnd, (HMENU)ID_BTN_SAMPLE16, hInst, NULL);
+            SendMessage(g_hBtnSample16, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
 
-            HWND hBtn32 = CreateWindowExA(0, "BUTTON", "Exemplo 32x",
-                WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                320, 48, 95, 26, hWnd, (HMENU)ID_BTN_SAMPLE32, hInst, NULL);
-            SendMessage(hBtn32, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
-
-            HWND hBtn16 = CreateWindowExA(0, "BUTTON", "Exemplo 16x",
-                WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                420, 48, 85, 26, hWnd, (HMENU)ID_BTN_SAMPLE16, hInst, NULL);
-            SendMessage(hBtn16, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
-
-            // 2. Multiline Editor
+            // Multiline Matrix Editor
             g_hEditMatrix = CreateWindowExA(
                 WS_EX_CLIENTEDGE, "EDIT", "",
                 WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_HSCROLL | ES_MULTILINE | ES_AUTOVSCROLL | ES_AUTOHSCROLL | ES_NOHIDESEL,
-                20, 80, 480, 540, hWnd, (HMENU)ID_EDIT_MATRIX, hInst, NULL
+                20, 86, 520, 534, hWnd, (HMENU)ID_EDIT_MATRIX, hInst, NULL
             );
             SendMessage(g_hEditMatrix, WM_SETFONT, (WPARAM)g_hFontMono, TRUE);
 
-            // 3. Status Label under editor
             g_hStatusMatrix = CreateWindowExA(
                 0, "STATIC", "Aguardando entrada...",
                 WS_CHILD | WS_VISIBLE | SS_LEFTNOWORDWRAP,
-                20, 626, 480, 24, hWnd, NULL, hInst, NULL
+                20, 626, 520, 24, hWnd, NULL, hInst, NULL
             );
             SendMessage(g_hStatusMatrix, WM_SETFONT, (WPARAM)g_hFontUIBold, TRUE);
 
-            // 4. Right Canvas Controls
+            // ==========================================
+            // TAB 2 CONTROLS: PNG -> PIXEL ART STUDIO
+            // ==========================================
+            g_hTab2BtnImport = CreateWindowExA(0, "BUTTON", "Carregar Imagem (PNG, JPG, BMP)",
+                WS_CHILD | BS_PUSHBUTTON,
+                20, 50, 520, 38, hWnd, (HMENU)ID_BTN_TAB2_IMPORT, hInst, NULL);
+            SendMessage(g_hTab2BtnImport, WM_SETFONT, (WPARAM)g_hFontUIBold, TRUE);
+
+            g_hTab2LblFile = CreateWindowExA(0, "STATIC", "Nenhuma imagem importada ainda.",
+                WS_CHILD | SS_LEFTNOWORDWRAP,
+                20, 94, 520, 22, hWnd, NULL, hInst, NULL);
+            SendMessage(g_hTab2LblFile, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
+
+            g_hTab2LblResHeader = CreateWindowExA(0, "STATIC", "Resolucao Alvo da Pixel Art:",
+                WS_CHILD | SS_LEFTNOWORDWRAP,
+                20, 124, 520, 22, hWnd, NULL, hInst, NULL);
+            SendMessage(g_hTab2LblResHeader, WM_SETFONT, (WPARAM)g_hFontUIBold, TRUE);
+
+            g_hTab2BtnRes16 = CreateWindowExA(0, "BUTTON", "16x16",
+                WS_CHILD | BS_PUSHBUTTON,
+                20, 150, 160, 32, hWnd, (HMENU)ID_BTN_RES16, hInst, NULL);
+            SendMessage(g_hTab2BtnRes16, WM_SETFONT, (WPARAM)g_hFontUIBold, TRUE);
+
+            g_hTab2BtnRes32 = CreateWindowExA(0, "BUTTON", "[ 32x32 ]",
+                WS_CHILD | BS_PUSHBUTTON,
+                190, 150, 160, 32, hWnd, (HMENU)ID_BTN_RES32, hInst, NULL);
+            SendMessage(g_hTab2BtnRes32, WM_SETFONT, (WPARAM)g_hFontUIBold, TRUE);
+
+            g_hTab2BtnRes64 = CreateWindowExA(0, "BUTTON", "64x64",
+                WS_CHILD | BS_PUSHBUTTON,
+                360, 150, 160, 32, hWnd, (HMENU)ID_BTN_RES64, hInst, NULL);
+            SendMessage(g_hTab2BtnRes64, WM_SETFONT, (WPARAM)g_hFontUIBold, TRUE);
+
+            g_hTab2BtnRemBg = CreateWindowExA(0, "BUTTON", "Remover Fundo Externo",
+                WS_CHILD | BS_PUSHBUTTON,
+                20, 195, 520, 34, hWnd, (HMENU)ID_BTN_TAB2_REMBG, hInst, NULL);
+            SendMessage(g_hTab2BtnRemBg, WM_SETFONT, (WPARAM)g_hFontUIBold, TRUE);
+
+            g_hTab2LblBgTip = CreateWindowExA(0, "STATIC",
+                "Dica: Remove o fundo externo sem apagar detalhes internos do sprite.\nVoce tambem pode clicar com o botao direito no canvas para apagar regioes fechadas.",
+                WS_CHILD,
+                20, 235, 520, 36, hWnd, NULL, hInst, NULL);
+            SendMessage(g_hTab2LblBgTip, WM_SETFONT, (WPARAM)g_hFontSmall, TRUE);
+
+            g_hTab2LblStats = CreateWindowExA(0, "STATIC",
+                "Estatisticas da Pixelizacao:\r\n\r\n"
+                "  * Nenhuma imagem carregada ainda.\r\n"
+                "  * Clique no botao acima para importar qualquer imagem PNG, JPG ou BMP.\r\n"
+                "  * O spritex vai pixelizar e mapear para a paleta DawnBringer 32!",
+                WS_CHILD,
+                20, 280, 520, 130, hWnd, NULL, hInst, NULL);
+            SendMessage(g_hTab2LblStats, WM_SETFONT, (WPARAM)g_hFontMono, TRUE);
+
+            g_hTab2BtnCopyMat = CreateWindowExA(0, "BUTTON", "Copiar Matriz Gerada [Tokens]",
+                WS_CHILD | BS_PUSHBUTTON,
+                20, 420, 520, 36, hWnd, (HMENU)ID_BTN_TAB2_COPYMAT, hInst, NULL);
+            SendMessage(g_hTab2BtnCopyMat, WM_SETFONT, (WPARAM)g_hFontUIBold, TRUE);
+
+            g_hTab2BtnToEditor = CreateWindowExA(0, "BUTTON", "Abrir Matriz no Editor de Codigo (Aba 1)",
+                WS_CHILD | BS_PUSHBUTTON,
+                20, 465, 520, 36, hWnd, (HMENU)ID_BTN_TAB2_TO_EDIT, hInst, NULL);
+            SendMessage(g_hTab2BtnToEditor, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
+
+            // ==========================================
+            // SHARED RIGHT CONTROLS: CANVAS & EXPORTS
+            // ==========================================
             HWND hLblScale = CreateWindowExA(0, "STATIC", "Escala:",
-                WS_CHILD | WS_VISIBLE, 520, 25, 45, 24, hWnd, NULL, hInst, NULL);
+                WS_CHILD | WS_VISIBLE, 560, 16, 45, 24, hWnd, NULL, hInst, NULL);
             SendMessage(hLblScale, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
 
             g_hComboScale = CreateWindowExA(0, "COMBOBOX", "",
                 WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL,
-                570, 22, 95, 200, hWnd, (HMENU)ID_COMBO_SCALE, hInst, NULL);
+                610, 13, 95, 200, hWnd, (HMENU)ID_COMBO_SCALE, hInst, NULL);
             SendMessage(g_hComboScale, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
             SendMessage(g_hComboScale, CB_ADDSTRING, 0, (LPARAM)"1x (Nativo)");
             SendMessage(g_hComboScale, CB_ADDSTRING, 0, (LPARAM)"4x");
@@ -387,44 +485,44 @@ LRESULT CALLBACK WndProcMain(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
             g_hChkGrid = CreateWindowExA(0, "BUTTON", "Grade de Pixels",
                 WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
-                675, 25, 110, 24, hWnd, (HMENU)ID_CHK_GRID, hInst, NULL);
+                715, 16, 110, 24, hWnd, (HMENU)ID_CHK_GRID, hInst, NULL);
             SendMessage(g_hChkGrid, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
 
             HWND hBtnExpHD = CreateWindowExA(0, "BUTTON", "Salvar PNG (HD)",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                795, 20, 105, 30, hWnd, (HMENU)ID_BTN_EXPORT_HD, hInst, NULL);
+                835, 12, 105, 30, hWnd, (HMENU)ID_BTN_EXPORT_HD, hInst, NULL);
             SendMessage(hBtnExpHD, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
 
             HWND hBtnExp1X = CreateWindowExA(0, "BUTTON", "Salvar PNG (1x)",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                905, 20, 100, 30, hWnd, (HMENU)ID_BTN_EXPORT_1X, hInst, NULL);
+                945, 12, 100, 30, hWnd, (HMENU)ID_BTN_EXPORT_1X, hInst, NULL);
             SendMessage(hBtnExp1X, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
 
             HWND hBtnCopy = CreateWindowExA(0, "BUTTON", "Copiar Imagem",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                1010, 20, 100, 30, hWnd, (HMENU)ID_BTN_COPY_IMG, hInst, NULL);
+                1050, 12, 100, 30, hWnd, (HMENU)ID_BTN_COPY_IMG, hInst, NULL);
             SendMessage(hBtnCopy, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
 
-            // 5. Custom Canvas Window
+            // Custom Canvas Window
             g_hCanvas = CreateWindowExA(
                 WS_EX_CLIENTEDGE, "SpritexCanvasClass", "",
                 WS_CHILD | WS_VISIBLE,
-                520, 60, 600, 560, hWnd, (HMENU)ID_CANVAS, hInst, NULL
+                560, 50, 590, 570, hWnd, (HMENU)ID_CANVAS, hInst, NULL
             );
 
-            // 6. Inspector Pixel Status Label
+            // Inspector Pixel Status Label
             g_hStatusPixel = CreateWindowExA(
                 0, "STATIC", "Mova o cursor sobre a imagem para inspecionar pixels.",
                 WS_CHILD | WS_VISIBLE | SS_LEFTNOWORDWRAP,
-                520, 630, 600, 24, hWnd, NULL, hInst, NULL
+                560, 626, 590, 24, hWnd, NULL, hInst, NULL
             );
             SendMessage(g_hStatusPixel, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
 
-            // 7. Palette Strip Bar
+            // Palette Strip Bar
             g_hPaletteBar = CreateWindowExA(
                 0, "SpritexPaletteClass", "",
                 WS_CHILD | WS_VISIBLE,
-                20, 665, 1100, 85, hWnd, (HMENU)ID_PALETTE_BAR, hInst, NULL
+                20, 665, 1130, 85, hWnd, (HMENU)ID_PALETTE_BAR, hInst, NULL
             );
 
             return 0;
@@ -438,13 +536,43 @@ LRESULT CALLBACK WndProcMain(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             int leftWidth = (width - 60) / 2;
             int rightLeft = leftWidth + 40;
             int rightWidth = width - rightLeft - 20;
-            int editorTop = 80;
-            int editorHeight = height - 200;
 
+            // Tab bar buttons:
+            SetWindowPos(g_hBtnTabMat2Png, NULL, 20, 12, 175, 30, SWP_NOZORDER);
+            SetWindowPos(g_hBtnTabPng2Mat, NULL, 200, 12, 175, 30, SWP_NOZORDER);
+
+            // Tab 1 controls:
+            SetWindowPos(g_hBtnPaste, NULL, 20, 50, 55, 28, SWP_NOZORDER);
+            SetWindowPos(g_hBtnFix, NULL, 80, 50, 90, 28, SWP_NOZORDER);
+            SetWindowPos(g_hBtnRemBg1, NULL, 175, 50, 110, 28, SWP_NOZORDER);
+            SetWindowPos(g_hBtnClear, NULL, 290, 50, 55, 28, SWP_NOZORDER);
+            SetWindowPos(g_hBtnSample32, NULL, 350, 50, 95, 28, SWP_NOZORDER);
+            SetWindowPos(g_hBtnSample16, NULL, 450, 50, 90, 28, SWP_NOZORDER);
+
+            int editorTop = 86;
+            int editorHeight = height - 200;
             SetWindowPos(g_hEditMatrix, NULL, 20, editorTop, leftWidth, editorHeight, SWP_NOZORDER);
             SetWindowPos(g_hStatusMatrix, NULL, 20, editorTop + editorHeight + 6, leftWidth, 24, SWP_NOZORDER);
 
-            SetWindowPos(g_hCanvas, NULL, rightLeft, 60, rightWidth, editorHeight + 20, SWP_NOZORDER);
+            // Tab 2 controls:
+            SetWindowPos(g_hTab2BtnImport, NULL, 20, 50, leftWidth, 38, SWP_NOZORDER);
+            SetWindowPos(g_hTab2LblFile, NULL, 20, 94, leftWidth, 22, SWP_NOZORDER);
+            SetWindowPos(g_hTab2LblResHeader, NULL, 20, 124, leftWidth, 22, SWP_NOZORDER);
+
+            int resBtnW = (leftWidth - 20) / 3;
+            SetWindowPos(g_hTab2BtnRes16, NULL, 20, 150, resBtnW, 32, SWP_NOZORDER);
+            SetWindowPos(g_hTab2BtnRes32, NULL, 20 + resBtnW + 10, 150, resBtnW, 32, SWP_NOZORDER);
+            SetWindowPos(g_hTab2BtnRes64, NULL, 20 + 2 * (resBtnW + 10), 150, resBtnW, 32, SWP_NOZORDER);
+
+            SetWindowPos(g_hTab2BtnRemBg, NULL, 20, 195, leftWidth, 34, SWP_NOZORDER);
+            SetWindowPos(g_hTab2LblBgTip, NULL, 20, 235, leftWidth, 36, SWP_NOZORDER);
+
+            SetWindowPos(g_hTab2LblStats, NULL, 20, 280, leftWidth, 130, SWP_NOZORDER);
+            SetWindowPos(g_hTab2BtnCopyMat, NULL, 20, 420, leftWidth, 36, SWP_NOZORDER);
+            SetWindowPos(g_hTab2BtnToEditor, NULL, 20, 465, leftWidth, 36, SWP_NOZORDER);
+
+            // Right side (Canvas & controls):
+            SetWindowPos(g_hCanvas, NULL, rightLeft, 50, rightWidth, editorHeight + 36, SWP_NOZORDER);
             SetWindowPos(g_hStatusPixel, NULL, rightLeft, editorTop + editorHeight + 6, rightWidth, 24, SWP_NOZORDER);
 
             SetWindowPos(g_hPaletteBar, NULL, 20, height - 90, width - 40, 80, SWP_NOZORDER);
@@ -476,6 +604,12 @@ LRESULT CALLBACK WndProcMain(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 }
             } else if (hStatic == g_hStatusPixel) {
                 SetTextColor(hdcStatic, COLOR_ACCENT_BLUE);
+            } else if (hStatic == g_hTab2LblFile || hStatic == g_hTab2LblResHeader) {
+                SetTextColor(hdcStatic, COLOR_ACCENT_BLUE);
+            } else if (hStatic == g_hTab2LblStats) {
+                SetTextColor(hdcStatic, COLOR_TEXT_EDIT);
+            } else if (hStatic == g_hTab2LblBgTip) {
+                SetTextColor(hdcStatic, COLOR_TEXT_MUTED);
             } else {
                 SetTextColor(hdcStatic, COLOR_TEXT_EDIT);
             }
@@ -486,9 +620,13 @@ LRESULT CALLBACK WndProcMain(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             int wmId    = LOWORD(wParam);
             int wmEvent = HIWORD(wParam);
 
-            if (wmId == ID_EDIT_MATRIX && wmEvent == EN_CHANGE) {
+            if (wmId == ID_TAB_MAT2PNG) {
+                SwitchTab(ActiveTab::MatrixToPng);
+            } else if (wmId == ID_TAB_PNG2MAT) {
+                SwitchTab(ActiveTab::PngToPixelArt);
+            } else if (wmId == ID_EDIT_MATRIX && wmEvent == EN_CHANGE) {
                 UpdateMatrixFromEditor();
-            } else if (wmId == ID_BTN_IMPORT_IMG) {
+            } else if (wmId == ID_BTN_TAB2_IMPORT) {
                 char szFile[MAX_PATH] = "";
                 OPENFILENAMEA ofn = {};
                 ofn.lStructSize = sizeof(OPENFILENAMEA);
@@ -509,7 +647,11 @@ LRESULT CALLBACK WndProcMain(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                     qOpt.outline = false;
                     qOpt.despeckle = true;
 
+                    auto tStart = std::chrono::high_resolution_clock::now();
                     auto cRes = spritex::tools::ImageConverter::from_file(szFile, qOpt);
+                    auto tEnd = std::chrono::high_resolution_clock::now();
+                    double timeMs = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
+
                     if (cRes.success) {
                         std::string matStr = spritex::tools::MatrixParser::format_matrix(cRes.matrix);
                         SetWindowTextA(g_hEditMatrix, matStr.c_str());
@@ -522,6 +664,8 @@ LRESULT CALLBACK WndProcMain(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                             g_currentScale = 16;
                             SendMessage(g_hComboScale, CB_SETCURSEL, 4, 0); // 16x
                         }
+
+                        UpdateTab2Stats(szFile, cRes.originalWidth, cRes.originalHeight, g_targetResolution, cRes.uniqueColors, timeMs);
 
                         std::stringstream ss;
                         ss << "Imagem pixelizada: " << cRes.originalWidth << "x" << cRes.originalHeight
@@ -538,8 +682,19 @@ LRESULT CALLBACK WndProcMain(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 SetResolution(32);
             } else if (wmId == ID_BTN_RES64) {
                 SetResolution(64);
-            } else if (wmId == ID_BTN_REMOVE_BG) {
+            } else if (wmId == ID_BTN_TAB2_REMBG || wmId == ID_BTN_REMBG_TAB1) {
                 RemoveBackground();
+            } else if (wmId == ID_BTN_TAB2_COPYMAT) {
+                if (g_matrixValid && !g_matrix.empty()) {
+                    std::string matStr = spritex::tools::MatrixParser::format_matrix(g_matrix);
+                    SetClipboardText(matStr);
+                    SetWindowTextA(g_hStatusPixel, "Matriz de tokens copiada para a Area de Transferencia!");
+                } else {
+                    MessageBoxA(hWnd, "Nenhuma matriz valida disponivel para copiar.", "Atencao", MB_ICONWARNING);
+                }
+            } else if (wmId == ID_BTN_TAB2_TO_EDIT) {
+                SwitchTab(ActiveTab::MatrixToPng);
+                SetWindowTextA(g_hStatusPixel, "Matriz aberta no Editor de Codigo para edicao pixel a pixel.");
             } else if (wmId == ID_BTN_PASTE) {
                 std::string clip = GetClipboardText();
                 if (!clip.empty()) {
@@ -587,17 +742,81 @@ LRESULT CALLBACK WndProcMain(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             break;
         }
 
-        case WM_DESTROY:
+        case WM_DESTROY: {
             PostQuitMessage(0);
             return 0;
+        }
     }
     return DefWindowProcA(hWnd, uMsg, wParam, lParam);
 }
 
+// Switch between Tab 1 and Tab 2
+void SwitchTab(ActiveTab newTab) {
+    g_activeTab = newTab;
+
+    if (newTab == ActiveTab::MatrixToPng) {
+        SetWindowTextA(g_hBtnTabMat2Png, "[ Matriz -> PNG ]");
+        SetWindowTextA(g_hBtnTabPng2Mat, "PNG -> Pixel Art");
+    } else {
+        SetWindowTextA(g_hBtnTabMat2Png, "Matriz -> PNG");
+        SetWindowTextA(g_hBtnTabPng2Mat, "[ PNG -> Pixel Art ]");
+    }
+
+    int show1 = (newTab == ActiveTab::MatrixToPng) ? SW_SHOW : SW_HIDE;
+    if (g_hBtnPaste) ShowWindow(g_hBtnPaste, show1);
+    if (g_hBtnFix) ShowWindow(g_hBtnFix, show1);
+    if (g_hBtnRemBg1) ShowWindow(g_hBtnRemBg1, show1);
+    if (g_hBtnClear) ShowWindow(g_hBtnClear, show1);
+    if (g_hBtnSample32) ShowWindow(g_hBtnSample32, show1);
+    if (g_hBtnSample16) ShowWindow(g_hBtnSample16, show1);
+    if (g_hEditMatrix) ShowWindow(g_hEditMatrix, show1);
+    if (g_hStatusMatrix) ShowWindow(g_hStatusMatrix, show1);
+
+    int show2 = (newTab == ActiveTab::PngToPixelArt) ? SW_SHOW : SW_HIDE;
+    if (g_hTab2BtnImport) ShowWindow(g_hTab2BtnImport, show2);
+    if (g_hTab2LblFile) ShowWindow(g_hTab2LblFile, show2);
+    if (g_hTab2LblResHeader) ShowWindow(g_hTab2LblResHeader, show2);
+    if (g_hTab2BtnRes16) ShowWindow(g_hTab2BtnRes16, show2);
+    if (g_hTab2BtnRes32) ShowWindow(g_hTab2BtnRes32, show2);
+    if (g_hTab2BtnRes64) ShowWindow(g_hTab2BtnRes64, show2);
+    if (g_hTab2BtnRemBg) ShowWindow(g_hTab2BtnRemBg, show2);
+    if (g_hTab2LblBgTip) ShowWindow(g_hTab2LblBgTip, show2);
+    if (g_hTab2LblStats) ShowWindow(g_hTab2LblStats, show2);
+    if (g_hTab2BtnCopyMat) ShowWindow(g_hTab2BtnCopyMat, show2);
+    if (g_hTab2BtnToEditor) ShowWindow(g_hTab2BtnToEditor, show2);
+
+    InvalidateRect(g_hWndMain, NULL, TRUE);
+}
+
+// Update Tab 2 stats display card
+void UpdateTab2Stats(const std::string& filePath, int origW, int origH, int targetRes, size_t uniqueColors, double timeMs) {
+    if (!g_hTab2LblStats) return;
+
+    std::string fileName = filePath;
+    size_t lastSlash = fileName.find_last_of("\\/");
+    if (lastSlash != std::string::npos) {
+        fileName = fileName.substr(lastSlash + 1);
+    }
+
+    std::stringstream ssFile;
+    ssFile << "Arquivo Carregado: " << fileName << " (" << origW << "x" << origH << " px)";
+    SetWindowTextA(g_hTab2LblFile, ssFile.str().c_str());
+
+    std::stringstream ss;
+    ss << "Estatisticas da Pixelizacao:\r\n\r\n"
+       << "  * Resolucao Original:  " << origW << " x " << origH << " px (32-bit RGBA)\r\n"
+       << "  * Pixel Art Gerada:    " << targetRes << " x " << targetRes << " (" << (targetRes * targetRes) << " tokens)\r\n"
+       << "  * Cores DawnBringer32: " << uniqueColors << " / 32 cores unicas\r\n"
+       << "  * Algoritmo:           Modal Sampling + Perceptual CIE76\r\n"
+       << "  * Tempo de Execucao:   " << std::fixed << std::setprecision(2) << timeMs << " ms";
+    SetWindowTextA(g_hTab2LblStats, ss.str().c_str());
+}
+
+// Parse text from editor and update internal matrix state
 void UpdateMatrixFromEditor() {
     int len = GetWindowTextLengthA(g_hEditMatrix);
     if (len == 0) {
-        g_matrix = spritex::tools::Matrix();
+        g_matrix = {};
         g_matrixValid = false;
         g_matrixWasRepaired = false;
         SetWindowTextA(g_hStatusMatrix, "Nenhuma matriz inserida.");
@@ -785,15 +1004,13 @@ LRESULT CALLBACK WndProcCanvas(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPara
             int w = rc.right - rc.left;
             int h = rc.bottom - rc.top;
 
-            // Create memory DC for flicker-free double buffering
+            // Double buffering
             HDC hdcMem = CreateCompatibleDC(hdc);
             HBITMAP hbmMem = CreateCompatibleBitmap(hdc, w, h);
             HBITMAP hbmOld = (HBITMAP)SelectObject(hdcMem, hbmMem);
 
-            // Fill canvas background
-            HBRUSH hBrCanvas = CreateSolidBrush(RGB(28, 30, 42));
-            FillRect(hdcMem, &rc, hBrCanvas);
-            DeleteObject(hBrCanvas);
+            // Dark canvas background
+            FillRect(hdcMem, &rc, g_hBrushPanel);
 
             if (g_matrixValid && !g_matrix.empty()) {
                 int spriteW = (int)g_matrix.width * g_currentScale;
@@ -801,102 +1018,72 @@ LRESULT CALLBACK WndProcCanvas(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPara
                 int offsetX = (w - spriteW) / 2;
                 int offsetY = (h - spriteH) / 2;
 
-                // 1. Draw Checkerboard background for transparency
-                int checkSize = 16;
-                HBRUSH hBrCheck1 = CreateSolidBrush(RGB(38, 41, 56));
-                HBRUSH hBrCheck2 = CreateSolidBrush(RGB(48, 52, 70));
+                // Checkerboard pattern colors for transparency
+                COLORREF cLight = RGB(38, 42, 58);
+                COLORREF cDark  = RGB(28, 31, 44);
+                HBRUSH hBrLight = CreateSolidBrush(cLight);
+                HBRUSH hBrDark  = CreateSolidBrush(cDark);
 
-                for (int cy = offsetY; cy < offsetY + spriteH; cy += checkSize) {
-                    for (int cx = offsetX; cx < offsetX + spriteW; cx += checkSize) {
-                        RECT rCheck = {
-                            cx, cy,
-                            std::min(cx + checkSize, offsetX + spriteW),
-                            std::min(cy + checkSize, offsetY + spriteH)
-                        };
-                        int checkX = (cx - offsetX) / checkSize;
-                        int checkY = (cy - offsetY) / checkSize;
-                        FillRect(hdcMem, &rCheck, ((checkX + checkY) % 2 == 0) ? hBrCheck1 : hBrCheck2);
-                    }
-                }
-                DeleteObject(hBrCheck1);
-                DeleteObject(hBrCheck2);
+                // Grid pen
+                HPEN hPenGrid = CreatePen(PS_SOLID, 1, RGB(45, 50, 70));
 
-                // 2. Prepare 32-bit BGRA top-down DIB for StretchDIBits
-                BITMAPINFO bmi = {};
-                bmi.bmiHeader.biSize        = sizeof(BITMAPINFOHEADER);
-                bmi.bmiHeader.biWidth       = (LONG)g_matrix.width;
-                bmi.bmiHeader.biHeight      = -((LONG)g_matrix.height); // Negative = Top-Down
-                bmi.bmiHeader.biPlanes      = 1;
-                bmi.bmiHeader.biBitCount    = 32;
-                bmi.bmiHeader.biCompression = BI_RGB;
+                int checkSize = std::max(4, g_currentScale / 2);
 
-                std::vector<uint32_t> bgraPixels(g_matrix.width * g_matrix.height);
                 for (size_t y = 0; y < g_matrix.height; ++y) {
                     for (size_t x = 0; x < g_matrix.width; ++x) {
-                        uint8_t token = g_matrix.at(x, y);
-                        auto c = spritex::tools::Palette32::get(token);
-                        size_t idx = y * g_matrix.width + x;
+                        int rx = offsetX + (int)x * g_currentScale;
+                        int ry = offsetY + (int)y * g_currentScale;
+                        RECT rPixel = {rx, ry, rx + g_currentScale, ry + g_currentScale};
 
-                        if (c.a == 0) {
-                            // Transparent pixel: blend with checkerboard
-                            bool isEven = (((x * g_currentScale / checkSize) + (y * g_currentScale / checkSize)) % 2 == 0);
-                            uint8_t bg = isEven ? 45 : 55;
-                            bgraPixels[idx] = (255 << 24) | (bg << 16) | (bg << 8) | bg;
+                        uint8_t token = g_matrix.at(x, y);
+                        auto color = spritex::tools::Palette32::get(token);
+
+                        if (color.a == 0) {
+                            // Render Aseprite-like checkerboard
+                            for (int cy = ry; cy < ry + g_currentScale; cy += checkSize) {
+                                for (int cx = rx; cx < rx + g_currentScale; cx += checkSize) {
+                                    RECT rCheck = {
+                                        cx, cy,
+                                        std::min(cx + checkSize, rx + g_currentScale),
+                                        std::min(cy + checkSize, ry + g_currentScale)
+                                    };
+                                    bool isLight = ((cx / checkSize) + (cy / checkSize)) % 2 == 0;
+                                    FillRect(hdcMem, &rCheck, isLight ? hBrLight : hBrDark);
+                                }
+                            }
                         } else {
-                            bgraPixels[idx] = (c.a << 24) | (c.r << 16) | (c.g << 8) | c.b;
+                            HBRUSH hBrPixel = CreateSolidBrush(RGB(color.r, color.g, color.b));
+                            FillRect(hdcMem, &rPixel, hBrPixel);
+                            DeleteObject(hBrPixel);
+                        }
+
+                        // Pixel Grid
+                        if (g_showGrid && g_currentScale >= 6) {
+                            HPEN hOldPen = (HPEN)SelectObject(hdcMem, hPenGrid);
+                            SelectObject(hdcMem, GetStockObject(NULL_BRUSH));
+                            Rectangle(hdcMem, rPixel.left, rPixel.top, rPixel.right + 1, rPixel.bottom + 1);
+                            SelectObject(hdcMem, hOldPen);
                         }
                     }
                 }
 
-                // Render crisp nearest-neighbor sprite
-                SetStretchBltMode(hdcMem, COLORONCOLOR);
-                StretchDIBits(
-                    hdcMem,
-                    offsetX, offsetY, spriteW, spriteH,
-                    0, 0, (int)g_matrix.width, (int)g_matrix.height,
-                    bgraPixels.data(),
-                    &bmi,
-                    DIB_RGB_COLORS,
-                    SRCCOPY
-                );
-
-                // 3. Pixel Grid Overlay
-                if (g_showGrid && g_currentScale >= 4) {
-                    HPEN hPenGrid = CreatePen(PS_SOLID, 1, RGB(65, 70, 95));
-                    HPEN hPenOld = (HPEN)SelectObject(hdcMem, hPenGrid);
-
-                    for (size_t x = 0; x <= g_matrix.width; ++x) {
-                        int gx = offsetX + (int)x * g_currentScale;
-                        MoveToEx(hdcMem, gx, offsetY, NULL);
-                        LineTo(hdcMem, gx, offsetY + spriteH);
-                    }
-                    for (size_t y = 0; y <= g_matrix.height; ++y) {
-                        int gy = offsetY + (int)y * g_currentScale;
-                        MoveToEx(hdcMem, offsetX, gy, NULL);
-                        LineTo(hdcMem, offsetX + spriteW, gy);
-                    }
-
-                    SelectObject(hdcMem, hPenOld);
-                    DeleteObject(hPenGrid);
-                }
-
-                // 4. Subtle Border around sprite
-                HPEN hPenBorder = CreatePen(PS_SOLID, 1, RGB(99, 155, 255));
-                HPEN hOldPen = (HPEN)SelectObject(hdcMem, hPenBorder);
-                HBRUSH hNullBrush = (HBRUSH)GetStockObject(NULL_BRUSH);
-                HBRUSH hOldBrush = (HBRUSH)SelectObject(hdcMem, hNullBrush);
+                // Sprite border outline
+                HPEN hPenBorder = CreatePen(PS_SOLID, 1, COLOR_ACCENT_BLUE);
+                HPEN hOldP = (HPEN)SelectObject(hdcMem, hPenBorder);
+                SelectObject(hdcMem, GetStockObject(NULL_BRUSH));
                 Rectangle(hdcMem, offsetX - 1, offsetY - 1, offsetX + spriteW + 1, offsetY + spriteH + 1);
-                SelectObject(hdcMem, hOldBrush);
-                SelectObject(hdcMem, hOldPen);
+                SelectObject(hdcMem, hOldP);
                 DeleteObject(hPenBorder);
 
+                DeleteObject(hBrLight);
+                DeleteObject(hBrDark);
+                DeleteObject(hPenGrid);
             } else {
-                // Empty or Error state message
+                // Empty state text
                 SetBkMode(hdcMem, TRANSPARENT);
-                SelectObject(hdcMem, g_hFontUIBold);
-                SetTextColor(hdcMem, RGB(120, 125, 145));
-
-                std::string msg = g_matrixValid ? "Cole uma matriz para visualizar" : ("Erro: " + g_parseError);
+                SelectObject(hdcMem, g_hFontUI);
+                SetTextColor(hdcMem, COLOR_TEXT_MUTED);
+                std::string msg = g_matrixValid ? "Nenhuma matriz carregada" : ("Erro de sintaxe:\n" + g_parseError);
                 DrawTextA(hdcMem, msg.c_str(), -1, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
             }
 
@@ -979,30 +1166,27 @@ LRESULT CALLBACK WndProcPalette(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPar
             SetTextColor(hdcMem, COLOR_TEXT_MUTED);
             TextOutA(hdcMem, 4, 2, "PALETA MASTER DB32 (Clique em uma cor para copiar o token):", 59);
 
-            // Draw swatches
-            SelectObject(hdcMem, g_hFontSmall);
-
-            for (uint8_t i = 0; i < spritex::tools::Palette32::SIZE; ++i) {
+            for (size_t i = 0; i < spritex::tools::Palette32::SIZE; ++i) {
                 int sx = 4 + (int)i * 34;
-                int sy = 24;
-                RECT rSwatch = { sx, sy, sx + 32, sy + 36 };
+                int sy = 22;
+                RECT rSwatch = {sx, sy, sx + 32, sy + 32};
 
-                auto c = spritex::tools::Palette32::get(i);
+                auto c = spritex::tools::Palette32::get((uint8_t)i);
 
                 if (c.a == 0) {
-                    // Transparent checkerboard
-                    HBRUSH hB1 = CreateSolidBrush(RGB(60, 60, 60));
-                    HBRUSH hB2 = CreateSolidBrush(RGB(100, 100, 100));
-                    RECT r1 = { sx, sy, sx + 16, sy + 18 };
-                    RECT r2 = { sx + 16, sy, sx + 32, sy + 18 };
-                    RECT r3 = { sx, sy + 18, sx + 16, sy + 36 };
-                    RECT r4 = { sx + 16, sy + 18, sx + 32, sy + 36 };
-                    FillRect(hdcMem, &r1, hB1);
-                    FillRect(hdcMem, &r2, hB2);
-                    FillRect(hdcMem, &r3, hB2);
-                    FillRect(hdcMem, &r4, hB1);
-                    DeleteObject(hB1);
-                    DeleteObject(hB2);
+                    // Checkered pattern for transparent swatch
+                    HBRUSH hBr1 = CreateSolidBrush(RGB(50, 50, 70));
+                    HBRUSH hBr2 = CreateSolidBrush(RGB(30, 30, 45));
+                    RECT r1 = {sx, sy, sx + 16, sy + 16};
+                    RECT r2 = {sx + 16, sy, sx + 32, sy + 16};
+                    RECT r3 = {sx, sy + 16, sx + 16, sy + 32};
+                    RECT r4 = {sx + 16, sy + 16, sx + 32, sy + 32};
+                    FillRect(hdcMem, &r1, hBr1);
+                    FillRect(hdcMem, &r2, hBr2);
+                    FillRect(hdcMem, &r3, hBr2);
+                    FillRect(hdcMem, &r4, hBr1);
+                    DeleteObject(hBr1);
+                    DeleteObject(hBr2);
                 } else {
                     HBRUSH hBr = CreateSolidBrush(RGB(c.r, c.g, c.b));
                     FillRect(hdcMem, &rSwatch, hBr);
@@ -1010,21 +1194,19 @@ LRESULT CALLBACK WndProcPalette(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPar
                 }
 
                 // Swatch border
-                COLORREF borderCol = (i == g_hoverSwatch) ? RGB(255, 255, 255) : RGB(40, 44, 60);
-                HPEN hPen = CreatePen(PS_SOLID, (i == g_hoverSwatch ? 2 : 1), borderCol);
-                HPEN hOldPen = (HPEN)SelectObject(hdcMem, hPen);
-                HBRUSH hNull = (HBRUSH)GetStockObject(NULL_BRUSH);
-                HBRUSH hOldBr = (HBRUSH)SelectObject(hdcMem, hNull);
+                HPEN hPen = CreatePen(PS_SOLID, 1, ((int)i == g_hoverSwatch) ? RGB(255, 255, 255) : RGB(55, 60, 80));
+                HPEN hOld = (HPEN)SelectObject(hdcMem, hPen);
+                SelectObject(hdcMem, GetStockObject(NULL_BRUSH));
                 Rectangle(hdcMem, rSwatch.left, rSwatch.top, rSwatch.right, rSwatch.bottom);
-                SelectObject(hdcMem, hOldBr);
-                SelectObject(hdcMem, hOldPen);
+                SelectObject(hdcMem, hOld);
                 DeleteObject(hPen);
 
-                // Token Number text
-                std::string num = std::to_string(i);
-                int luminance = (c.r * 299 + c.g * 587 + c.b * 114) / 1000;
-                SetTextColor(hdcMem, (c.a > 0 && luminance > 130) ? RGB(0, 0, 0) : RGB(255, 255, 255));
-                DrawTextA(hdcMem, num.c_str(), -1, &rSwatch, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                // Token Number text below
+                SelectObject(hdcMem, g_hFontSmall);
+                SetTextColor(hdcMem, COLOR_TEXT_MUTED);
+                std::string numStr = std::to_string(i);
+                RECT rNum = {sx, sy + 34, sx + 32, sy + 48};
+                DrawTextA(hdcMem, numStr.c_str(), -1, &rNum, DT_CENTER | DT_SINGLELINE);
             }
 
             BitBlt(hdc, 0, 0, w, h, hdcMem, 0, 0, SRCCOPY);
@@ -1155,10 +1337,9 @@ void RemoveBackground() {
 
 // Update Resolution Buttons Visual Indication
 void UpdateResolutionButtonsUI(int res) {
-    if (!g_hBtnRes16 || !g_hBtnRes32 || !g_hBtnRes64) return;
-    SetWindowTextA(g_hBtnRes16, (res == 16) ? "[ 16x16 ]" : "16x16");
-    SetWindowTextA(g_hBtnRes32, (res == 32) ? "[ 32x32 ]" : "32x32");
-    SetWindowTextA(g_hBtnRes64, (res == 64) ? "[ 64x64 ]" : "64x64");
+    if (g_hTab2BtnRes16) SetWindowTextA(g_hTab2BtnRes16, (res == 16) ? "[ 16x16 ]" : "16x16");
+    if (g_hTab2BtnRes32) SetWindowTextA(g_hTab2BtnRes32, (res == 32) ? "[ 32x32 ]" : "32x32");
+    if (g_hTab2BtnRes64) SetWindowTextA(g_hTab2BtnRes64, (res == 64) ? "[ 64x64 ]" : "64x64");
 }
 
 // Set target resolution (16x16, 32x32, 64x64) and convert or resample
@@ -1177,7 +1358,11 @@ void SetResolution(int res) {
         qOpt.outline = false;
         qOpt.despeckle = true;
 
+        auto tStart = std::chrono::high_resolution_clock::now();
         auto cRes = spritex::tools::ImageConverter::from_file(g_lastImportedFile, qOpt);
+        auto tEnd = std::chrono::high_resolution_clock::now();
+        double timeMs = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
+
         if (cRes.success) {
             std::string matStr = spritex::tools::MatrixParser::format_matrix(cRes.matrix);
             SetWindowTextA(g_hEditMatrix, matStr.c_str());
@@ -1190,6 +1375,8 @@ void SetResolution(int res) {
                 g_currentScale = 16;
                 SendMessage(g_hComboScale, CB_SETCURSEL, 4, 0); // 16x
             }
+
+            UpdateTab2Stats(g_lastImportedFile, cRes.originalWidth, cRes.originalHeight, res, cRes.uniqueColors, timeMs);
 
             std::stringstream ss;
             ss << "Imagem re-pixelizada para " << res << "x" << res << " (" << cRes.uniqueColors << " cores DB32)";
@@ -1287,43 +1474,39 @@ void CopyImageToClipboard() {
     bmi.bmiHeader.biBitCount    = 32;
     bmi.bmiHeader.biCompression = BI_RGB;
 
-    size_t dataSize = outW * outH * 4;
-    HGLOBAL hMem = GlobalAlloc(GHND, sizeof(BITMAPINFOHEADER) + dataSize);
-    if (!hMem) return;
-
-    uint8_t* pMem = (uint8_t*)GlobalLock(hMem);
-    memcpy(pMem, &bmi.bmiHeader, sizeof(BITMAPINFOHEADER));
-    uint8_t* pPixels = pMem + sizeof(BITMAPINFOHEADER);
-
-    for (int y = 0; y < outH; ++y) {
-        int srcY = (int)g_matrix.height - 1 - (y / scale);
-        for (int x = 0; x < outW; ++x) {
-            int srcX = x / scale;
-            uint8_t token = g_matrix.at(srcX, srcY);
-            auto c = spritex::tools::Palette32::get(token);
-            size_t idx = (y * outW + x) * 4;
-
-            if (c.a == 0) {
-                // Background dark for transparent pixels
-                pPixels[idx + 0] = 30;
-                pPixels[idx + 1] = 33;
-                pPixels[idx + 2] = 46;
-                pPixels[idx + 3] = 255;
-            } else {
-                pPixels[idx + 0] = c.b;
-                pPixels[idx + 1] = c.g;
-                pPixels[idx + 2] = c.r;
-                pPixels[idx + 3] = c.a;
-            }
-        }
-    }
-    GlobalUnlock(hMem);
+    size_t dibSize = sizeof(BITMAPINFOHEADER) + (outW * outH * 4);
 
     if (OpenClipboard(g_hWndMain)) {
         EmptyClipboard();
-        SetClipboardData(CF_DIB, hMem);
+
+        HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, dibSize);
+        if (hMem) {
+            uint8_t* pDest = (uint8_t*)GlobalLock(hMem);
+            memcpy(pDest, &bmi.bmiHeader, sizeof(BITMAPINFOHEADER));
+            uint32_t* pPixels = (uint32_t*)(pDest + sizeof(BITMAPINFOHEADER));
+
+            for (int y = outH - 1; y >= 0; --y) {
+                int srcY = (outH - 1 - y) / scale;
+                for (int x = 0; x < outW; ++x) {
+                    int srcX = x / scale;
+                    uint8_t token = g_matrix.at(srcX, srcY);
+                    auto c = spritex::tools::Palette32::get(token);
+
+                    if (c.a == 0) {
+                        *pPixels++ = 0x00000000;
+                    } else {
+                        // BGRA format for CF_DIB
+                        uint32_t val = (0xFF << 24) | (c.r << 16) | (c.g << 8) | c.b;
+                        *pPixels++ = val;
+                    }
+                }
+            }
+
+            GlobalUnlock(hMem);
+            SetClipboardData(CF_DIB, hMem);
+            SetWindowTextA(g_hStatusPixel, "Imagem copiada para a Area de Transferencia (CF_DIB)!");
+        }
         CloseClipboard();
-        MessageBoxA(g_hWndMain, "Imagem copiada para a Area de Transferencia!\nVoce ja pode colar diretamente no Discord, Photoshop, Paint, etc.", "Copiado", MB_ICONINFORMATION);
     }
 }
 
