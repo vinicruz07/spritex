@@ -13,6 +13,8 @@
 
 #include <string>
 #include <vector>
+#include <queue>
+#include <unordered_map>
 #include <sstream>
 #include <iomanip>
 #include <chrono>
@@ -39,6 +41,7 @@ constexpr int ID_BTN_COPY_IMG  = 1011;
 constexpr int ID_PALETTE_BAR   = 1012;
 constexpr int ID_BTN_FIX_MATRIX = 1013;
 constexpr int ID_BTN_IMPORT_IMG = 1014;
+constexpr int ID_BTN_REMOVE_BG  = 1015;
 
 // Dark Theme Colors
 const COLORREF COLOR_BG_MAIN     = RGB(22, 24, 34);     // Deep Slate
@@ -142,6 +145,7 @@ LRESULT CALLBACK WndProcPalette(HWND, UINT, WPARAM, LPARAM);
 void UpdateMatrixFromEditor();
 void ExportPNG(int scale);
 void CopyImageToClipboard();
+void RemoveBackground();
 
 // Helper to set clipboard text
 void SetClipboardText(const std::string& text) {
@@ -280,35 +284,40 @@ LRESULT CALLBACK WndProcMain(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
             // 1. Left Action Buttons
             // Row 1: Core Action Buttons
-            HWND hBtnImport = CreateWindowExA(0, "BUTTON", "Importar Imagem (PNG/JPG)",
+            HWND hBtnImport = CreateWindowExA(0, "BUTTON", "Importar Imagem",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                20, 15, 175, 28, hWnd, (HMENU)ID_BTN_IMPORT_IMG, hInst, NULL);
+                20, 15, 140, 28, hWnd, (HMENU)ID_BTN_IMPORT_IMG, hInst, NULL);
             SendMessage(hBtnImport, WM_SETFONT, (WPARAM)g_hFontUIBold, TRUE);
+
+            HWND hBtnRemBg = CreateWindowExA(0, "BUTTON", "Remover Fundo",
+                WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                165, 15, 130, 28, hWnd, (HMENU)ID_BTN_REMOVE_BG, hInst, NULL);
+            SendMessage(hBtnRemBg, WM_SETFONT, (WPARAM)g_hFontUIBold, TRUE);
 
             HWND hBtnPaste = CreateWindowExA(0, "BUTTON", "Colar",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                202, 15, 80, 28, hWnd, (HMENU)ID_BTN_PASTE, hInst, NULL);
+                300, 15, 55, 28, hWnd, (HMENU)ID_BTN_PASTE, hInst, NULL);
             SendMessage(hBtnPaste, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
 
             HWND hBtnFix = CreateWindowExA(0, "BUTTON", "Auto-Ajustar",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                288, 15, 95, 28, hWnd, (HMENU)ID_BTN_FIX_MATRIX, hInst, NULL);
+                360, 15, 95, 28, hWnd, (HMENU)ID_BTN_FIX_MATRIX, hInst, NULL);
             SendMessage(hBtnFix, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
 
             HWND hBtnClr = CreateWindowExA(0, "BUTTON", "Limpar",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                389, 15, 65, 28, hWnd, (HMENU)ID_BTN_CLEAR, hInst, NULL);
+                460, 15, 60, 28, hWnd, (HMENU)ID_BTN_CLEAR, hInst, NULL);
             SendMessage(hBtnClr, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
 
             // Row 2: Presets
             HWND hBtn32 = CreateWindowExA(0, "BUTTON", "Exemplo 32x32 (Paladino)",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                20, 48, 210, 26, hWnd, (HMENU)ID_BTN_SAMPLE32, hInst, NULL);
+                20, 48, 245, 26, hWnd, (HMENU)ID_BTN_SAMPLE32, hInst, NULL);
             SendMessage(hBtn32, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
 
             HWND hBtn16 = CreateWindowExA(0, "BUTTON", "Exemplo 16x16 (Guerreiro)",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                236, 48, 218, 26, hWnd, (HMENU)ID_BTN_SAMPLE16, hInst, NULL);
+                275, 48, 245, 26, hWnd, (HMENU)ID_BTN_SAMPLE16, hInst, NULL);
             SendMessage(hBtn16, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
 
             // 2. Multiline Editor
@@ -482,6 +491,8 @@ LRESULT CALLBACK WndProcMain(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                         MessageBoxA(hWnd, cRes.error.c_str(), "Erro na Conversao", MB_ICONERROR);
                     }
                 }
+            } else if (wmId == ID_BTN_REMOVE_BG) {
+                RemoveBackground();
             } else if (wmId == ID_BTN_PASTE) {
 
                 std::string clip = GetClipboardText();
@@ -640,6 +651,69 @@ LRESULT CALLBACK WndProcCanvas(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPara
                     g_hoverPixelX = -1;
                     g_hoverPixelY = -1;
                     SetWindowTextA(g_hStatusPixel, "Mova o cursor sobre o sprite para inspecionar pixels.");
+                }
+            }
+            break;
+        }
+
+        case WM_RBUTTONDOWN: {
+            int mx = GET_X_LPARAM(lParam);
+            int my = GET_Y_LPARAM(lParam);
+
+            if (!g_matrixValid || g_matrix.empty()) break;
+
+            RECT rc;
+            GetClientRect(hWnd, &rc);
+            int spriteW = (int)g_matrix.width * g_currentScale;
+            int spriteH = (int)g_matrix.height * g_currentScale;
+            int offsetX = (rc.right - spriteW) / 2;
+            int offsetY = (rc.bottom - spriteH) / 2;
+
+            int px = (mx - offsetX) / g_currentScale;
+            int py = (my - offsetY) / g_currentScale;
+
+            if (px >= 0 && px < (int)g_matrix.width && py >= 0 && py < (int)g_matrix.height) {
+                uint8_t targetToken = g_matrix.at(px, py);
+                if (targetToken != 0) {
+                    std::vector<bool> visited(g_matrix.width * g_matrix.height, false);
+                    std::queue<std::pair<int, int>> q;
+
+                    visited[py * g_matrix.width + px] = true;
+                    q.push({px, py});
+
+                    size_t count = 0;
+                    while (!q.empty()) {
+                        auto p = q.front();
+                        int cx = p.first;
+                        int cy = p.second;
+                        q.pop();
+
+                        g_matrix.data[cy * g_matrix.width + cx] = 0;
+                        count++;
+
+                        const int dx[] = {0, 0, -1, 1};
+                        const int dy[] = {-1, 1, 0, 0};
+                        for (int i = 0; i < 4; ++i) {
+                            int nx = cx + dx[i];
+                            int ny = cy + dy[i];
+                            if (nx >= 0 && nx < (int)g_matrix.width && ny >= 0 && ny < (int)g_matrix.height) {
+                                size_t nidx = ny * g_matrix.width + nx;
+                                if (!visited[nidx] && g_matrix.at(nx, ny) == targetToken) {
+                                    visited[nidx] = true;
+                                    q.push({nx, ny});
+                                }
+                            }
+                        }
+                    }
+
+                    std::string newText = spritex::tools::MatrixParser::format_matrix(g_matrix);
+                    SetWindowTextA(g_hEditMatrix, newText.c_str());
+                    UpdateMatrixFromEditor();
+
+                    const char* name = spritex::tools::Palette32::get_name(targetToken);
+                    std::string msg = "Regiao da cor '" + std::string(name) + "' (" +
+                                      std::to_string(count) + " pixels) convertida para Transparente!";
+                    SetWindowTextA(g_hStatusPixel, msg.c_str());
                 }
             }
             break;
@@ -907,6 +981,119 @@ LRESULT CALLBACK WndProcPalette(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPar
         }
     }
     return DefWindowProcA(hWnd, uMsg, wParam, lParam);
+}
+
+// Automatically detects background color and flood-fills outer perimeter to transparent (0)
+void RemoveBackground() {
+    if (!g_matrixValid || g_matrix.empty()) {
+        MessageBoxA(g_hWndMain, "Nenhuma matriz valida carregada para remover o fundo.", "Atencao", MB_ICONWARNING);
+        return;
+    }
+
+    // 1. Detect background token from the outer corners & borders
+    uint8_t c1 = g_matrix.at(0, 0);
+    uint8_t c2 = g_matrix.at(g_matrix.width - 1, 0);
+    uint8_t c3 = g_matrix.at(0, g_matrix.height - 1);
+    uint8_t c4 = g_matrix.at(g_matrix.width - 1, g_matrix.height - 1);
+
+    std::unordered_map<uint8_t, int> counts;
+    counts[c1]++; counts[c2]++; counts[c3]++; counts[c4]++;
+
+    uint8_t bgToken = c1;
+    int maxCorner = 0;
+    for (const auto& pair : counts) {
+        if (pair.second > maxCorner) {
+            maxCorner = pair.second;
+            bgToken = pair.first;
+        }
+    }
+
+    // If dominant corner is already transparent (0), look for another border token
+    if (bgToken == 0) {
+        std::unordered_map<uint8_t, int> borderCounts;
+        for (size_t x = 0; x < g_matrix.width; ++x) {
+            uint8_t t1 = g_matrix.at(x, 0);
+            uint8_t t2 = g_matrix.at(x, g_matrix.height - 1);
+            if (t1 != 0) borderCounts[t1]++;
+            if (t2 != 0) borderCounts[t2]++;
+        }
+        for (size_t y = 0; y < g_matrix.height; ++y) {
+            uint8_t t1 = g_matrix.at(0, y);
+            uint8_t t2 = g_matrix.at(g_matrix.width - 1, y);
+            if (t1 != 0) borderCounts[t1]++;
+            if (t2 != 0) borderCounts[t2]++;
+        }
+
+        if (borderCounts.empty()) {
+            MessageBoxA(g_hWndMain, "O fundo da imagem ja e 100% transparente (Token 0).", "Informacao", MB_ICONINFORMATION);
+            return;
+        }
+
+        int maxB = 0;
+        for (const auto& pair : borderCounts) {
+            if (pair.second > maxB) {
+                maxB = pair.second;
+                bgToken = pair.first;
+            }
+        }
+    }
+
+    // 2. Flood-Fill from all 4 outer borders for pixels matching bgToken
+    std::vector<bool> visited(g_matrix.width * g_matrix.height, false);
+    std::queue<std::pair<int, int>> q;
+
+    auto pushIfBorderBg = [&](int x, int y) {
+        size_t idx = y * g_matrix.width + x;
+        if (!visited[idx] && g_matrix.at(x, y) == bgToken) {
+            visited[idx] = true;
+            q.push({x, y});
+        }
+    };
+
+    for (size_t x = 0; x < g_matrix.width; ++x) {
+        pushIfBorderBg((int)x, 0);
+        pushIfBorderBg((int)x, (int)g_matrix.height - 1);
+    }
+    for (size_t y = 0; y < g_matrix.height; ++y) {
+        pushIfBorderBg(0, (int)y);
+        pushIfBorderBg((int)g_matrix.width - 1, (int)y);
+    }
+
+    size_t removedCount = 0;
+    while (!q.empty()) {
+        auto p = q.front();
+        int cx = p.first;
+        int cy = p.second;
+        q.pop();
+
+        g_matrix.data[cy * g_matrix.width + cx] = 0;
+        removedCount++;
+
+        const int dx[] = {0, 0, -1, 1};
+        const int dy[] = {-1, 1, 0, 0};
+        for (int i = 0; i < 4; ++i) {
+            int nx = cx + dx[i];
+            int ny = cy + dy[i];
+            if (nx >= 0 && nx < (int)g_matrix.width && ny >= 0 && ny < (int)g_matrix.height) {
+                size_t nidx = ny * g_matrix.width + nx;
+                if (!visited[nidx] && g_matrix.at(nx, ny) == bgToken) {
+                    visited[nidx] = true;
+                    q.push({nx, ny});
+                }
+            }
+        }
+    }
+
+    // 3. Update editor text and canvas
+    std::string newText = spritex::tools::MatrixParser::format_matrix(g_matrix);
+    SetWindowTextA(g_hEditMatrix, newText.c_str());
+    UpdateMatrixFromEditor();
+
+    const char* colorName = spritex::tools::Palette32::get_name(bgToken);
+    std::string msg = "Fundo removido: " + std::to_string(removedCount) +
+                      " pixels externos da cor '" + colorName +
+                      "' (Token " + std::to_string(bgToken) + ") convertidos para Transparente (0)!";
+    SetWindowTextA(g_hStatusPixel, msg.c_str());
 }
 
 // Export PNG via file dialog

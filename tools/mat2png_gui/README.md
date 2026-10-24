@@ -2,12 +2,16 @@
 
 Interface Gráfica (GUI) nativa em **C++17 puro (Win32 GDI)**, ultrarrápida, sem dependências externas pesadas e com visual moderno *Dark Theme*.
 
-Permite colar matrizes numéricas geradas por LLMs ou criadas manualmente, editá-las em tempo real e visualizar a arte final instantaneamente a 60+ FPS, além de exportar em PNG ou copiar diretamente para a área de transferência.
+Permite importar qualquer imagem normal (PNG/JPG), colar matrizes numéricas geradas por LLMs ou criadas manualmente, editá-las em tempo real, remover fundos com 1 clique e visualizar a arte final instantaneamente a 60+ FPS.
 
 ---
 
 ## ✨ Recursos
 
+* **🖼️ Importador de Imagens (PNG/JPG):** Botão para carregar qualquer imagem do computador; ela é pixelizada e quantizada para DB32 em **< 45 ms** e renderizada na hora.
+* **🪄 Removedor de Fundo Inteligente (Botão & Botão Direito):**
+  * **Botão `[Remover Fundo]`:** Detecta automaticamente a cor do fundo pelas bordas externas e aplica *Exterior Flood-Fill*, tornando todo o fundo transparente (`token 0`). **Preserva 100% dos detalhes internos** (como reflexos brancos ou contornos da armadura que usem a mesma cor).
+  * **Clique com o Botão Direito no Sprite:** Clique em qualquer pixel ou bolsão de cor na tela para convertê-lo imediatamente em Transparente (`token 0`) por inundação conectada!
 * **⚡ Atualização em Tempo Real (Zero Lag):** Ao digitar ou colar qualquer matriz (`Ctrl+V`), o parser nativo em C++ processa a entrada em **< 0.3 ms** e atualiza a tela na hora.
 * **🎨 Paleta Master DB32 (32 Cores):** Suporte nativo ao canal alfa (token `0` transparente com fundo quadriculado estilo *Photoshop / Aseprite*).
 * **🔍 Inspetor de Pixels Interativo:** Ao mover o mouse sobre o sprite, o painel exibe as coordenadas `(X, Y)`, o token e a cor exata (`Nome, Hex e RGBA`).
@@ -40,7 +44,7 @@ Ou dar um duplo clique em `mat2png_gui.exe` no Windows Explorer!
 
 ### Via g++ (MinGW)
 ```bash
-g++ -std=c++17 -O2 -I../../third_party -I../mat2png -I. main.cpp -mwindows -lgdi32 -luser32 -lcomdlg32 -lcomctl32 -o mat2png_gui.exe
+g++ -std=c++17 -O2 -I../../third_party -I../mat2png -I../img2mat -I. main.cpp -mwindows -lgdi32 -luser32 -lcomdlg32 -lcomctl32 -o mat2png_gui.exe
 ```
 
 ### Via CMake
