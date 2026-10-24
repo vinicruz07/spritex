@@ -24,11 +24,74 @@ struct QuantizerOptions {
     bool keyMagenta{false};     // Treat bright magenta as transparent (#FF00FF)
     bool outline{false};        // Automatically add black contour (token 1) around character
     bool despeckle{true};       // Remove orphan/isolated 1x1 noise pixels
+    bool autoCrop{false};       // Automatically detect bounding box and fit character to canvas
+    int  cropMargin{1};         // Aesthetic border margin (in tokens) when autoCrop is enabled
     DownsampleMode mode{DownsampleMode::Modal};
 };
 
 class ColorQuantizer {
 public:
+    struct BoundingBox {
+        int minX{0};
+        int maxX{-1};
+        int minY{0};
+        int maxY{-1};
+        bool valid{false};
+    };
+
+    // Detect non-background bounding box for auto-crop & fit
+    static BoundingBox detect_bounding_box(const uint8_t* rgba, int inW, int inH, const QuantizerOptions& opt) {
+        BoundingBox bbox;
+        if (!rgba || inW <= 0 || inH <= 0) return bbox;
+
+        uint8_t bgR = rgba[0], bgG = rgba[1], bgB = rgba[2], bgA = rgba[3];
+
+        int minX = inW, maxX = -1;
+        int minY = inH, maxY = -1;
+
+        for (int y = 0; y < inH; ++y) {
+            for (int x = 0; x < inW; ++x) {
+                size_t idx = (y * inW + x) * 4;
+                uint8_t r = rgba[idx + 0];
+                uint8_t g = rgba[idx + 1];
+                uint8_t b = rgba[idx + 2];
+                uint8_t a = rgba[idx + 3];
+
+                bool isBg = false;
+                if (a < opt.alphaThreshold) {
+                    isBg = true;
+                } else if (opt.keyWhite && r >= 235 && g >= 235 && b >= 235) {
+                    isBg = true;
+                } else if (opt.keyMagenta && r >= 230 && g <= 35 && b >= 230) {
+                    isBg = true;
+                } else if (bgA >= opt.alphaThreshold) {
+                    int dr = std::abs((int)r - (int)bgR);
+                    int dg = std::abs((int)g - (int)bgG);
+                    int db = std::abs((int)b - (int)bgB);
+                    if (dr <= 25 && dg <= 25 && db <= 25) {
+                        isBg = true;
+                    }
+                }
+
+                if (!isBg) {
+                    if (x < minX) minX = x;
+                    if (x > maxX) maxX = x;
+                    if (y < minY) minY = y;
+                    if (y > maxY) maxY = y;
+                }
+            }
+        }
+
+        if (minX <= maxX && minY <= maxY) {
+            bbox.minX = minX;
+            bbox.maxX = maxX;
+            bbox.minY = minY;
+            bbox.maxY = maxY;
+            bbox.valid = true;
+        }
+        return bbox;
+    }
+
     // Fast CompuPhase Perceptual Color Distance
     // Matches human eye sensitivity (CIE76 approximation)
     static inline long color_distance(uint8_t r1, uint8_t g1, uint8_t b1,
@@ -81,15 +144,60 @@ public:
         out.height = static_cast<size_t>(opt.targetHeight);
         out.data.resize(out.width * out.height, 0);
 
+        BoundingBox bbox;
+        double step = 0.0;
+        double centerX = 0.0, centerY = 0.0;
+        bool useCrop = false;
+
+        if (opt.autoCrop) {
+            bbox = detect_bounding_box(rgba, inW, inH, opt);
+            if (bbox.valid) {
+                int bboxW = bbox.maxX - bbox.minX + 1;
+                int bboxH = bbox.maxY - bbox.minY + 1;
+                int availW = std::max(1, opt.targetWidth - 2 * opt.cropMargin);
+                int availH = std::max(1, opt.targetHeight - 2 * opt.cropMargin);
+
+                step = std::max((double)bboxW / availW, (double)bboxH / availH);
+                centerX = (bbox.minX + bbox.maxX) / 2.0;
+                centerY = (bbox.minY + bbox.maxY) / 2.0;
+                useCrop = true;
+            }
+        }
+
         for (int ty = 0; ty < opt.targetHeight; ++ty) {
-            int y0 = ty * inH / opt.targetHeight;
-            int y1 = (ty + 1) * inH / opt.targetHeight;
-            if (y1 <= y0) y1 = y0 + 1;
+            int y0, y1;
+            if (useCrop) {
+                double sy = centerY + (ty - (opt.targetHeight - 1) / 2.0) * step;
+                y0 = (int)std::round(sy - step / 2.0);
+                y1 = (int)std::round(sy + step / 2.0);
+                if (y1 <= y0) y1 = y0 + 1;
+            } else {
+                y0 = ty * inH / opt.targetHeight;
+                y1 = (ty + 1) * inH / opt.targetHeight;
+                if (y1 <= y0) y1 = y0 + 1;
+            }
 
             for (int tx = 0; tx < opt.targetWidth; ++tx) {
-                int x0 = tx * inW / opt.targetWidth;
-                int x1 = (tx + 1) * inW / opt.targetWidth;
-                if (x1 <= x0) x1 = x0 + 1;
+                int x0, x1;
+                if (useCrop) {
+                    double sx = centerX + (tx - (opt.targetWidth - 1) / 2.0) * step;
+                    x0 = (int)std::round(sx - step / 2.0);
+                    x1 = (int)std::round(sx + step / 2.0);
+                    if (x1 <= x0) x1 = x0 + 1;
+
+                    if (x1 <= 0 || x0 >= inW || y1 <= 0 || y0 >= inH) {
+                        out.data[ty * out.width + tx] = 0;
+                        continue;
+                    }
+                    x0 = std::clamp(x0, 0, inW - 1);
+                    x1 = std::clamp(x1, x0 + 1, inW);
+                    y0 = std::clamp(y0, 0, inH - 1);
+                    y1 = std::clamp(y1, y0 + 1, inH);
+                } else {
+                    x0 = tx * inW / opt.targetWidth;
+                    x1 = (tx + 1) * inW / opt.targetWidth;
+                    if (x1 <= x0) x1 = x0 + 1;
+                }
 
                 uint8_t token = 0;
 

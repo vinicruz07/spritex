@@ -12,7 +12,12 @@ A interface agora é dividida em duas abas dedicadas no topo esquerdo, eliminand
 
 ### 📝 Aba 1: `[ Matriz -> PNG ]`
 * **Editor de Matriz com Zero Lag:** Área de texto ampla com parser em tempo real (< 0.3 ms).
-* **Ações de Código:** Botões `[Colar]`, `[Auto-Ajustar]` (repara linhas desalinhadas de LLMs), `[Limpar]` e `[Remover Fundo]`.
+* **Ações de Código:**
+  * `[Colar]`: Cola a matriz da área de transferência.
+  * `[Ajustar]`: Corrige e alinha automaticamente linhas com contagem errada de colunas geradas por LLMs.
+  * `[Enquadrar]`: Detecta a silhueta da pixel art na matriz, corta as margens vazias de fundo e amplia proporcionalmente para preencher todo o grid mantendo a proporção 1:1!
+  * `[Rem. Fundo]`: Converte o fundo conectado em transparente (`token 0`).
+  * `[Limpar]`: Reseta o editor.
 * **Presets Rápidos:** Botões de 1 clique para carregar o Paladino 32x32 e o Guerreiro 16x16.
 * **Diagnóstico Integrado:** Barra de status abaixo do editor informando resolução, total de tokens, cores únicas e tempo de parse.
 
@@ -21,6 +26,9 @@ A interface agora é dividida em duas abas dedicadas no topo esquerdo, eliminand
 * **Seletores de Resolução Alvo (16x16, 32x32, 64x64):**
   * Botões dedicados com indicação do modo ativo (`[ 16x16 ]`, `[ 32x32 ]`, `[ 64x64 ]`).
   * **Re-Pixelização Instantânea:** Troque a resolução com 1 clique e veja a pixel art se transformar em tempo real (< 45 ms), preservando a fidelidade da imagem original.
+* **🔍 Auto-Enquadramento de Silhueta (Crop & Fit Inteligente):**
+  * **Checkbox `[x] Auto-Enquadrar Silhueta`:** Ativado por padrão. Ao importar qualquer imagem com bordas gigantes de fundo (comum em artes de IA/Midjourney/DALL-E), detecta o Bounding Box do personagem na imagem original em alta resolução, elimina as bordas vazias e amplia o personagem proporcionalmente para ocupar a tela com máxima definição!
+  * **Botão `[Auto-Enquadrar Silhueta]`:** Enquadra e amplia na hora a imagem carregada ou matriz atual com 1 clique.
 * **🪄 Removedor de Fundo Externo:** Botão que aplica *Outer Perimeter Flood-Fill*, apagando o fundo externo sem danificar olhos ou detalhes internos do sprite.
 * **Card de Estatísticas em Tempo Real:** Mostra arquivo, dimensões originais, tokens gerados, cores DB32 utilizadas e tempo de processamento.
 * **Ações de Exportação:** `[Copiar Matriz Gerada [Tokens]]` e `[Abrir no Editor de Matriz (Aba 1)]`.

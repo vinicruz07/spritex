@@ -100,6 +100,8 @@ int main(int argc, char* argv[]) {
             opt.keyWhite = true;
         } else if (arg == "--key-magenta") {
             opt.keyMagenta = true;
+        } else if (arg == "--crop" || arg == "--auto-crop") {
+            opt.autoCrop = true;
         } else if (arg == "--outline") {
             opt.outline = true;
         } else if (arg == "--no-clean") {
