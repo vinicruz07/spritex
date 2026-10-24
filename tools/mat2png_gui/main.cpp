@@ -1,7 +1,9 @@
+#define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "../mat2png/palette.hpp"
 #include "../mat2png/parser.hpp"
 #include "../mat2png/rasterizer.hpp"
+#include "../img2mat/converter.hpp"
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -36,6 +38,7 @@ constexpr int ID_BTN_EXPORT_1X = 1010;
 constexpr int ID_BTN_COPY_IMG  = 1011;
 constexpr int ID_PALETTE_BAR   = 1012;
 constexpr int ID_BTN_FIX_MATRIX = 1013;
+constexpr int ID_BTN_IMPORT_IMG = 1014;
 
 // Dark Theme Colors
 const COLORREF COLOR_BG_MAIN     = RGB(22, 24, 34);     // Deep Slate
@@ -276,36 +279,43 @@ LRESULT CALLBACK WndProcMain(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             HINSTANCE hInst = ((LPCREATESTRUCT)lParam)->hInstance;
 
             // 1. Left Action Buttons
+            // Row 1: Core Action Buttons
+            HWND hBtnImport = CreateWindowExA(0, "BUTTON", "Importar Imagem (PNG/JPG)",
+                WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                20, 15, 175, 28, hWnd, (HMENU)ID_BTN_IMPORT_IMG, hInst, NULL);
+            SendMessage(hBtnImport, WM_SETFONT, (WPARAM)g_hFontUIBold, TRUE);
+
             HWND hBtnPaste = CreateWindowExA(0, "BUTTON", "Colar",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                20, 20, 85, 30, hWnd, (HMENU)ID_BTN_PASTE, hInst, NULL);
+                202, 15, 80, 28, hWnd, (HMENU)ID_BTN_PASTE, hInst, NULL);
             SendMessage(hBtnPaste, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
-
-            HWND hBtn32 = CreateWindowExA(0, "BUTTON", "Exemplo 32x32",
-                WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                110, 20, 95, 30, hWnd, (HMENU)ID_BTN_SAMPLE32, hInst, NULL);
-            SendMessage(hBtn32, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
-
-            HWND hBtn16 = CreateWindowExA(0, "BUTTON", "Exemplo 16x16",
-                WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                210, 20, 95, 30, hWnd, (HMENU)ID_BTN_SAMPLE16, hInst, NULL);
-            SendMessage(hBtn16, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
 
             HWND hBtnFix = CreateWindowExA(0, "BUTTON", "Auto-Ajustar",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                310, 20, 95, 30, hWnd, (HMENU)ID_BTN_FIX_MATRIX, hInst, NULL);
+                288, 15, 95, 28, hWnd, (HMENU)ID_BTN_FIX_MATRIX, hInst, NULL);
             SendMessage(hBtnFix, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
 
             HWND hBtnClr = CreateWindowExA(0, "BUTTON", "Limpar",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                410, 20, 65, 30, hWnd, (HMENU)ID_BTN_CLEAR, hInst, NULL);
+                389, 15, 65, 28, hWnd, (HMENU)ID_BTN_CLEAR, hInst, NULL);
             SendMessage(hBtnClr, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
+
+            // Row 2: Presets
+            HWND hBtn32 = CreateWindowExA(0, "BUTTON", "Exemplo 32x32 (Paladino)",
+                WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                20, 48, 210, 26, hWnd, (HMENU)ID_BTN_SAMPLE32, hInst, NULL);
+            SendMessage(hBtn32, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
+
+            HWND hBtn16 = CreateWindowExA(0, "BUTTON", "Exemplo 16x16 (Guerreiro)",
+                WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                236, 48, 218, 26, hWnd, (HMENU)ID_BTN_SAMPLE16, hInst, NULL);
+            SendMessage(hBtn16, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
 
             // 2. Multiline Editor
             g_hEditMatrix = CreateWindowExA(
                 WS_EX_CLIENTEDGE, "EDIT", "",
                 WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_HSCROLL | ES_MULTILINE | ES_AUTOVSCROLL | ES_AUTOHSCROLL | ES_NOHIDESEL,
-                20, 60, 480, 560, hWnd, (HMENU)ID_EDIT_MATRIX, hInst, NULL
+                20, 80, 480, 540, hWnd, (HMENU)ID_EDIT_MATRIX, hInst, NULL
             );
             SendMessage(g_hEditMatrix, WM_SETFONT, (WPARAM)g_hFontMono, TRUE);
 
@@ -313,7 +323,7 @@ LRESULT CALLBACK WndProcMain(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             g_hStatusMatrix = CreateWindowExA(
                 0, "STATIC", "Aguardando entrada...",
                 WS_CHILD | WS_VISIBLE | SS_LEFTNOWORDWRAP,
-                20, 630, 480, 24, hWnd, NULL, hInst, NULL
+                20, 626, 480, 24, hWnd, NULL, hInst, NULL
             );
             SendMessage(g_hStatusMatrix, WM_SETFONT, (WPARAM)g_hFontUIBold, TRUE);
 
@@ -388,13 +398,14 @@ LRESULT CALLBACK WndProcMain(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             int leftWidth = (width - 60) / 2;
             int rightLeft = leftWidth + 40;
             int rightWidth = width - rightLeft - 20;
-            int editorHeight = height - 190;
+            int editorTop = 80;
+            int editorHeight = height - 200;
 
-            SetWindowPos(g_hEditMatrix, NULL, 20, 60, leftWidth, editorHeight, SWP_NOZORDER);
-            SetWindowPos(g_hStatusMatrix, NULL, 20, 60 + editorHeight + 8, leftWidth, 24, SWP_NOZORDER);
+            SetWindowPos(g_hEditMatrix, NULL, 20, editorTop, leftWidth, editorHeight, SWP_NOZORDER);
+            SetWindowPos(g_hStatusMatrix, NULL, 20, editorTop + editorHeight + 6, leftWidth, 24, SWP_NOZORDER);
 
-            SetWindowPos(g_hCanvas, NULL, rightLeft, 60, rightWidth, editorHeight, SWP_NOZORDER);
-            SetWindowPos(g_hStatusPixel, NULL, rightLeft, 60 + editorHeight + 8, rightWidth, 24, SWP_NOZORDER);
+            SetWindowPos(g_hCanvas, NULL, rightLeft, 60, rightWidth, editorHeight + 20, SWP_NOZORDER);
+            SetWindowPos(g_hStatusPixel, NULL, rightLeft, editorTop + editorHeight + 6, rightWidth, 24, SWP_NOZORDER);
 
             SetWindowPos(g_hPaletteBar, NULL, 20, height - 90, width - 40, 80, SWP_NOZORDER);
             InvalidateRect(hWnd, NULL, TRUE);
@@ -437,7 +448,42 @@ LRESULT CALLBACK WndProcMain(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
             if (wmId == ID_EDIT_MATRIX && wmEvent == EN_CHANGE) {
                 UpdateMatrixFromEditor();
+            } else if (wmId == ID_BTN_IMPORT_IMG) {
+                char szFile[MAX_PATH] = "";
+                OPENFILENAMEA ofn = {};
+                ofn.lStructSize = sizeof(OPENFILENAMEA);
+                ofn.hwndOwner   = hWnd;
+                ofn.lpstrFilter = "Imagens (*.png;*.jpg;*.jpeg;*.bmp)\0*.png;*.jpg;*.jpeg;*.bmp\0Todos os Arquivos (*.*)\0*.*\0";
+                ofn.lpstrFile   = szFile;
+                ofn.nMaxFile    = sizeof(szFile);
+                ofn.lpstrTitle  = "Selecionar Imagem para Converter em Pixel Art (DB32)";
+                ofn.Flags       = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
+
+                if (GetOpenFileNameA(&ofn)) {
+                    spritex::tools::QuantizerOptions qOpt;
+                    qOpt.targetWidth = 32;
+                    qOpt.targetHeight = 32;
+                    qOpt.mode = spritex::tools::DownsampleMode::Modal;
+                    qOpt.keyWhite = false;
+                    qOpt.outline = false;
+                    qOpt.despeckle = true;
+
+                    auto cRes = spritex::tools::ImageConverter::from_file(szFile, qOpt);
+                    if (cRes.success) {
+                        std::string matStr = spritex::tools::MatrixParser::format_matrix(cRes.matrix);
+                        SetWindowTextA(g_hEditMatrix, matStr.c_str());
+                        UpdateMatrixFromEditor();
+
+                        std::stringstream ss;
+                        ss << "Imagem pixelizada: " << cRes.originalWidth << "x" << cRes.originalHeight
+                           << " px -> 32x32 (" << cRes.uniqueColors << " cores DB32)";
+                        SetWindowTextA(g_hStatusPixel, ss.str().c_str());
+                    } else {
+                        MessageBoxA(hWnd, cRes.error.c_str(), "Erro na Conversao", MB_ICONERROR);
+                    }
+                }
             } else if (wmId == ID_BTN_PASTE) {
+
                 std::string clip = GetClipboardText();
                 if (!clip.empty()) {
                     SetWindowTextA(g_hEditMatrix, clip.c_str());

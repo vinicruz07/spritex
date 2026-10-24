@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../third_party)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../mat2png)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../img2mat)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 add_executable(mat2png_gui WIN32 main.cpp)
