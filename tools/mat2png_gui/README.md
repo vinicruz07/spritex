@@ -9,6 +9,10 @@ Permite importar qualquer imagem normal (PNG/JPG), colar matrizes numéricas ger
 ## ✨ Recursos
 
 * **🖼️ Importador de Imagens (PNG/JPG):** Botão para carregar qualquer imagem do computador; ela é pixelizada e quantizada para DB32 em **< 45 ms** e renderizada na hora.
+* **🎛️ Seletores de Resolução Alvo (16x16, 32x32, 64x64):**
+  * Botões dedicados com indicação do modo ativo (`[ 16x16 ]`, `[ 32x32 ]`, `[ 64x64 ]`).
+  * **Re-Pixelização Instantânea de Imagens:** Ao alternar a resolução com uma imagem já carregada, o app reprocessa na hora a partir da imagem original na nova resolução.
+  * **Redimensionamento de Matrizes:** Se estiver editando uma matriz colada ou manual, o app redimensiona suavemente via interpolação *nearest-neighbor*.
 * **🪄 Removedor de Fundo Inteligente (Botão & Botão Direito):**
   * **Botão `[Remover Fundo]`:** Detecta automaticamente a cor do fundo pelas bordas externas e aplica *Exterior Flood-Fill*, tornando todo o fundo transparente (`token 0`). **Preserva 100% dos detalhes internos** (como reflexos brancos ou contornos da armadura que usem a mesma cor).
   * **Clique com o Botão Direito no Sprite:** Clique em qualquer pixel ou bolsão de cor na tela para convertê-lo imediatamente em Transparente (`token 0`) por inundação conectada!

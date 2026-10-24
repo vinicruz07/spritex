@@ -42,6 +42,9 @@ constexpr int ID_PALETTE_BAR   = 1012;
 constexpr int ID_BTN_FIX_MATRIX = 1013;
 constexpr int ID_BTN_IMPORT_IMG = 1014;
 constexpr int ID_BTN_REMOVE_BG  = 1015;
+constexpr int ID_BTN_RES16      = 1016;
+constexpr int ID_BTN_RES32      = 1017;
+constexpr int ID_BTN_RES64      = 1018;
 
 // Dark Theme Colors
 const COLORREF COLOR_BG_MAIN     = RGB(22, 24, 34);     // Deep Slate
@@ -63,6 +66,12 @@ HWND g_hStatusPixel   = nullptr;
 HWND g_hComboScale    = nullptr;
 HWND g_hChkGrid       = nullptr;
 HWND g_hPaletteBar    = nullptr;
+HWND g_hBtnRes16      = nullptr;
+HWND g_hBtnRes32      = nullptr;
+HWND g_hBtnRes64      = nullptr;
+
+int  g_targetResolution = 32;
+std::string g_lastImportedFile;
 
 HBRUSH g_hBrushMain   = nullptr;
 HBRUSH g_hBrushPanel  = nullptr;
@@ -146,6 +155,8 @@ void UpdateMatrixFromEditor();
 void ExportPNG(int scale);
 void CopyImageToClipboard();
 void RemoveBackground();
+void SetResolution(int res);
+void UpdateResolutionButtonsUI(int res);
 
 // Helper to set clipboard text
 void SetClipboardText(const std::string& text) {
@@ -286,38 +297,58 @@ LRESULT CALLBACK WndProcMain(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             // Row 1: Core Action Buttons
             HWND hBtnImport = CreateWindowExA(0, "BUTTON", "Importar Imagem",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                20, 15, 140, 28, hWnd, (HMENU)ID_BTN_IMPORT_IMG, hInst, NULL);
+                20, 14, 130, 28, hWnd, (HMENU)ID_BTN_IMPORT_IMG, hInst, NULL);
             SendMessage(hBtnImport, WM_SETFONT, (WPARAM)g_hFontUIBold, TRUE);
 
             HWND hBtnRemBg = CreateWindowExA(0, "BUTTON", "Remover Fundo",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                165, 15, 130, 28, hWnd, (HMENU)ID_BTN_REMOVE_BG, hInst, NULL);
+                155, 14, 120, 28, hWnd, (HMENU)ID_BTN_REMOVE_BG, hInst, NULL);
             SendMessage(hBtnRemBg, WM_SETFONT, (WPARAM)g_hFontUIBold, TRUE);
 
             HWND hBtnPaste = CreateWindowExA(0, "BUTTON", "Colar",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                300, 15, 55, 28, hWnd, (HMENU)ID_BTN_PASTE, hInst, NULL);
+                280, 14, 55, 28, hWnd, (HMENU)ID_BTN_PASTE, hInst, NULL);
             SendMessage(hBtnPaste, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
 
             HWND hBtnFix = CreateWindowExA(0, "BUTTON", "Auto-Ajustar",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                360, 15, 95, 28, hWnd, (HMENU)ID_BTN_FIX_MATRIX, hInst, NULL);
+                340, 14, 95, 28, hWnd, (HMENU)ID_BTN_FIX_MATRIX, hInst, NULL);
             SendMessage(hBtnFix, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
 
             HWND hBtnClr = CreateWindowExA(0, "BUTTON", "Limpar",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                460, 15, 60, 28, hWnd, (HMENU)ID_BTN_CLEAR, hInst, NULL);
+                440, 14, 65, 28, hWnd, (HMENU)ID_BTN_CLEAR, hInst, NULL);
             SendMessage(hBtnClr, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
 
-            // Row 2: Presets
-            HWND hBtn32 = CreateWindowExA(0, "BUTTON", "Exemplo 32x32 (Paladino)",
+            // Row 2: Resolution Selectors & Presets
+            HWND hLblRes = CreateWindowExA(0, "STATIC", "Tamanho:",
+                WS_CHILD | WS_VISIBLE,
+                20, 52, 65, 22, hWnd, NULL, hInst, NULL);
+            SendMessage(hLblRes, WM_SETFONT, (WPARAM)g_hFontUIBold, TRUE);
+
+            g_hBtnRes16 = CreateWindowExA(0, "BUTTON", "16x16",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                20, 48, 245, 26, hWnd, (HMENU)ID_BTN_SAMPLE32, hInst, NULL);
+                88, 48, 72, 26, hWnd, (HMENU)ID_BTN_RES16, hInst, NULL);
+            SendMessage(g_hBtnRes16, WM_SETFONT, (WPARAM)g_hFontUIBold, TRUE);
+
+            g_hBtnRes32 = CreateWindowExA(0, "BUTTON", "[ 32x32 ]",
+                WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                164, 48, 72, 26, hWnd, (HMENU)ID_BTN_RES32, hInst, NULL);
+            SendMessage(g_hBtnRes32, WM_SETFONT, (WPARAM)g_hFontUIBold, TRUE);
+
+            g_hBtnRes64 = CreateWindowExA(0, "BUTTON", "64x64",
+                WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                240, 48, 72, 26, hWnd, (HMENU)ID_BTN_RES64, hInst, NULL);
+            SendMessage(g_hBtnRes64, WM_SETFONT, (WPARAM)g_hFontUIBold, TRUE);
+
+            HWND hBtn32 = CreateWindowExA(0, "BUTTON", "Exemplo 32x",
+                WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                320, 48, 95, 26, hWnd, (HMENU)ID_BTN_SAMPLE32, hInst, NULL);
             SendMessage(hBtn32, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
 
-            HWND hBtn16 = CreateWindowExA(0, "BUTTON", "Exemplo 16x16 (Guerreiro)",
+            HWND hBtn16 = CreateWindowExA(0, "BUTTON", "Exemplo 16x",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                275, 48, 245, 26, hWnd, (HMENU)ID_BTN_SAMPLE16, hInst, NULL);
+                420, 48, 85, 26, hWnd, (HMENU)ID_BTN_SAMPLE16, hInst, NULL);
             SendMessage(hBtn16, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
 
             // 2. Multiline Editor
@@ -469,9 +500,10 @@ LRESULT CALLBACK WndProcMain(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 ofn.Flags       = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
 
                 if (GetOpenFileNameA(&ofn)) {
+                    g_lastImportedFile = szFile;
                     spritex::tools::QuantizerOptions qOpt;
-                    qOpt.targetWidth = 32;
-                    qOpt.targetHeight = 32;
+                    qOpt.targetWidth = g_targetResolution;
+                    qOpt.targetHeight = g_targetResolution;
                     qOpt.mode = spritex::tools::DownsampleMode::Modal;
                     qOpt.keyWhite = false;
                     qOpt.outline = false;
@@ -483,29 +515,48 @@ LRESULT CALLBACK WndProcMain(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                         SetWindowTextA(g_hEditMatrix, matStr.c_str());
                         UpdateMatrixFromEditor();
 
+                        if (g_targetResolution == 64 && g_currentScale > 8) {
+                            g_currentScale = 8;
+                            SendMessage(g_hComboScale, CB_SETCURSEL, 2, 0); // 8x
+                        } else if (g_targetResolution == 16 && g_currentScale < 16) {
+                            g_currentScale = 16;
+                            SendMessage(g_hComboScale, CB_SETCURSEL, 4, 0); // 16x
+                        }
+
                         std::stringstream ss;
                         ss << "Imagem pixelizada: " << cRes.originalWidth << "x" << cRes.originalHeight
-                           << " px -> 32x32 (" << cRes.uniqueColors << " cores DB32)";
+                           << " px -> " << g_targetResolution << "x" << g_targetResolution
+                           << " (" << cRes.uniqueColors << " cores DB32)";
                         SetWindowTextA(g_hStatusPixel, ss.str().c_str());
                     } else {
                         MessageBoxA(hWnd, cRes.error.c_str(), "Erro na Conversao", MB_ICONERROR);
                     }
                 }
+            } else if (wmId == ID_BTN_RES16) {
+                SetResolution(16);
+            } else if (wmId == ID_BTN_RES32) {
+                SetResolution(32);
+            } else if (wmId == ID_BTN_RES64) {
+                SetResolution(64);
             } else if (wmId == ID_BTN_REMOVE_BG) {
                 RemoveBackground();
             } else if (wmId == ID_BTN_PASTE) {
-
                 std::string clip = GetClipboardText();
                 if (!clip.empty()) {
+                    g_lastImportedFile.clear();
                     SetWindowTextA(g_hEditMatrix, clip.c_str());
                     UpdateMatrixFromEditor();
                 }
             } else if (wmId == ID_BTN_SAMPLE32) {
+                g_lastImportedFile.clear();
                 SetWindowTextA(g_hEditMatrix, SAMPLE_32X32);
                 UpdateMatrixFromEditor();
+                SetResolution(32);
             } else if (wmId == ID_BTN_SAMPLE16) {
+                g_lastImportedFile.clear();
                 SetWindowTextA(g_hEditMatrix, SAMPLE_16X16);
                 UpdateMatrixFromEditor();
+                SetResolution(16);
             } else if (wmId == ID_BTN_FIX_MATRIX) {
                 if (g_matrixValid && !g_matrix.empty()) {
                     std::string formatted = spritex::tools::MatrixParser::format_matrix(g_matrix);
@@ -513,6 +564,7 @@ LRESULT CALLBACK WndProcMain(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                     UpdateMatrixFromEditor();
                 }
             } else if (wmId == ID_BTN_CLEAR) {
+                g_lastImportedFile.clear();
                 SetWindowTextA(g_hEditMatrix, "");
                 UpdateMatrixFromEditor();
             } else if (wmId == ID_COMBO_SCALE && wmEvent == CBN_SELCHANGE) {
@@ -569,6 +621,11 @@ void UpdateMatrixFromEditor() {
         g_matrixWasRepaired = res.wasRepaired;
         g_matrixWarning = res.warning;
         g_parseError.clear();
+
+        if (g_matrix.width == g_matrix.height && (g_matrix.width == 16 || g_matrix.width == 32 || g_matrix.width == 64)) {
+            g_targetResolution = (int)g_matrix.width;
+            UpdateResolutionButtonsUI(g_targetResolution);
+        }
 
         // Count unique colors
         std::array<bool, 256> seen{};
@@ -1094,6 +1151,88 @@ void RemoveBackground() {
                       " pixels externos da cor '" + colorName +
                       "' (Token " + std::to_string(bgToken) + ") convertidos para Transparente (0)!";
     SetWindowTextA(g_hStatusPixel, msg.c_str());
+}
+
+// Update Resolution Buttons Visual Indication
+void UpdateResolutionButtonsUI(int res) {
+    if (!g_hBtnRes16 || !g_hBtnRes32 || !g_hBtnRes64) return;
+    SetWindowTextA(g_hBtnRes16, (res == 16) ? "[ 16x16 ]" : "16x16");
+    SetWindowTextA(g_hBtnRes32, (res == 32) ? "[ 32x32 ]" : "32x32");
+    SetWindowTextA(g_hBtnRes64, (res == 64) ? "[ 64x64 ]" : "64x64");
+}
+
+// Set target resolution (16x16, 32x32, 64x64) and convert or resample
+void SetResolution(int res) {
+    if (res != 16 && res != 32 && res != 64) return;
+    g_targetResolution = res;
+    UpdateResolutionButtonsUI(res);
+
+    // 1. If an image was previously imported, re-process from original file at new resolution
+    if (!g_lastImportedFile.empty()) {
+        spritex::tools::QuantizerOptions qOpt;
+        qOpt.targetWidth = res;
+        qOpt.targetHeight = res;
+        qOpt.mode = spritex::tools::DownsampleMode::Modal;
+        qOpt.keyWhite = false;
+        qOpt.outline = false;
+        qOpt.despeckle = true;
+
+        auto cRes = spritex::tools::ImageConverter::from_file(g_lastImportedFile, qOpt);
+        if (cRes.success) {
+            std::string matStr = spritex::tools::MatrixParser::format_matrix(cRes.matrix);
+            SetWindowTextA(g_hEditMatrix, matStr.c_str());
+            UpdateMatrixFromEditor();
+
+            if (res == 64 && g_currentScale > 8) {
+                g_currentScale = 8;
+                SendMessage(g_hComboScale, CB_SETCURSEL, 2, 0); // 8x
+            } else if (res == 16 && g_currentScale < 16) {
+                g_currentScale = 16;
+                SendMessage(g_hComboScale, CB_SETCURSEL, 4, 0); // 16x
+            }
+
+            std::stringstream ss;
+            ss << "Imagem re-pixelizada para " << res << "x" << res << " (" << cRes.uniqueColors << " cores DB32)";
+            SetWindowTextA(g_hStatusPixel, ss.str().c_str());
+            return;
+        }
+    }
+
+    // 2. If no image was imported, but a valid matrix is in editor, resample using nearest-neighbor
+    if (g_matrixValid && !g_matrix.empty() && ((int)g_matrix.width != res || (int)g_matrix.height != res)) {
+        spritex::tools::Matrix resampled;
+        resampled.width = res;
+        resampled.height = res;
+        resampled.data.resize(res * res, 0);
+
+        for (int y = 0; y < res; ++y) {
+            int sy = std::clamp((int)(y * g_matrix.height / res), 0, (int)g_matrix.height - 1);
+            for (int x = 0; x < res; ++x) {
+                int sx = std::clamp((int)(x * g_matrix.width / res), 0, (int)g_matrix.width - 1);
+                resampled.data[y * res + x] = g_matrix.at(sx, sy);
+            }
+        }
+
+        std::string matStr = spritex::tools::MatrixParser::format_matrix(resampled);
+        SetWindowTextA(g_hEditMatrix, matStr.c_str());
+        UpdateMatrixFromEditor();
+
+        if (res == 64 && g_currentScale > 8) {
+            g_currentScale = 8;
+            SendMessage(g_hComboScale, CB_SETCURSEL, 2, 0); // 8x
+        } else if (res == 16 && g_currentScale < 16) {
+            g_currentScale = 16;
+            SendMessage(g_hComboScale, CB_SETCURSEL, 4, 0); // 16x
+        }
+
+        std::stringstream ss;
+        ss << "Pixel art redimensionada para " << res << "x" << res;
+        SetWindowTextA(g_hStatusPixel, ss.str().c_str());
+    } else {
+        std::stringstream ss;
+        ss << "Resolucao de saida selecionada: " << res << "x" << res << ". Importe uma imagem ou cole uma matriz.";
+        SetWindowTextA(g_hStatusPixel, ss.str().c_str());
+    }
 }
 
 // Export PNG via file dialog
