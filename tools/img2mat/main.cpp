@@ -37,16 +37,25 @@ void print_help(const char* progName) {
               << "Opcoes de Dimensoes e Amostragem:\n"
               << "  -w, --width <int>         Largura da matriz gerada (padrao: 32)\n"
               << "  -h, --height <int>        Altura da matriz gerada (padrao: 32)\n"
+              << "  --crop, --auto-crop       Auto-enquadra silhueta eliminando bordas vazias\n"
               << "  --mode <modal|center|avg> Metodo de pixelizacao (padrao: modal)\n"
               << "                            modal: cor mais frequente (ideal p/ IA/Midjourney)\n"
               << "                            center: pixel central (ideal p/ upscaled art)\n"
               << "                            avg: media RGB antes da quantizacao\n\n"
+              << "Filtros de Estilo Retro & Cel-Shading:\n"
+              << "  --cel, --cel-shade        Filtro Kuwahara p/ achatar gradientes em planos de cor\n"
+              << "  --cel-radius <int>        Raio da janela Kuwahara (padrao: 2, janela 5x5)\n"
+              << "  --posterize               Reduz tons continuos para planos solidos de desenho\n"
+              << "  --vibrant                 Modo cores vivas (+25% saturacao e +20% contraste DB32)\n"
+              << "  --contrast <float>        Ajuste fino de contraste (ex: 1.20)\n"
+              << "  --saturation <float>      Ajuste fino de saturacao (ex: 1.25)\n"
+              << "  --outline                 Aplica contorno preto retro (token 1) na silhueta\n"
+              << "  --despeckle, --denoise    Remove pixels orfaos isolados 1x1 (padrao: ativo)\n"
+              << "  --no-clean, --no-despeckle Desativa filtro de remocao de ruido isolado\n\n"
               << "Opcoes de Tratamento de Cor & Fundo:\n"
               << "  --key-white               Trata fundo branco (#F0F0F0+) como transparente\n"
               << "  --key-magenta             Trata magenta (#FF00FF) como transparente\n"
-              << "  --alpha <0-255>           Limiar de corte alfa (padrao: 128)\n"
-              << "  --outline                 Aplica contorno preto retro (token 1) nas bordas\n"
-              << "  --no-clean                Desativa filtro de remocao de ruido isolado\n\n"
+              << "  --alpha <0-255>           Limiar de corte alfa (padrao: 128)\n\n"
               << "Opcoes de Saida:\n"
               << "  -o, --output <arquivo>    Salva matriz em arquivo .txt (padrao: <input>_mat.txt)\n"
               << "  -p, --png <arquivo.png>   Gera imagem PNG rasterizada de preview\n"
@@ -54,8 +63,8 @@ void print_help(const char* progName) {
               << "  --stdout                  Imprime a matriz gerada no terminal (stdout)\n"
               << "  --help                    Exibe este menu de ajuda\n\n"
               << "Exemplos:\n"
-              << "  " << progName << " -i arte_midjourney.png -w 32 -h 32 --key-white -p out.png\n"
-              << "  " << progName << " -i foto.jpg -o matriz.txt --outline\n";
+              << "  " << progName << " -i arte.png -w 32 -h 32 --crop --cel --vibrant -p out.png\n"
+              << "  " << progName << " -i personagem.png -w 16 -h 16 --crop --cel --vibrant --outline -p out16.png\n";
 }
 
 } // namespace
@@ -102,9 +111,24 @@ int main(int argc, char* argv[]) {
             opt.keyMagenta = true;
         } else if (arg == "--crop" || arg == "--auto-crop") {
             opt.autoCrop = true;
+        } else if (arg == "--cel" || arg == "--cel-shade") {
+            opt.celShade = true;
+        } else if (arg == "--cel-radius") {
+            if (i + 1 < argc) opt.celShadeRadius = std::stoi(argv[++i]);
+        } else if (arg == "--posterize") {
+            opt.posterize = true;
+        } else if (arg == "--vibrant") {
+            opt.contrast = 1.20f;
+            opt.saturation = 1.25f;
+        } else if (arg == "--contrast") {
+            if (i + 1 < argc) opt.contrast = std::stof(argv[++i]);
+        } else if (arg == "--saturation") {
+            if (i + 1 < argc) opt.saturation = std::stof(argv[++i]);
         } else if (arg == "--outline") {
             opt.outline = true;
-        } else if (arg == "--no-clean") {
+        } else if (arg == "--despeckle" || arg == "--denoise") {
+            opt.despeckle = true;
+        } else if (arg == "--no-clean" || arg == "--no-despeckle") {
             opt.despeckle = false;
         } else if (arg == "--stdout") {
             printStdout = true;
@@ -176,6 +200,13 @@ int main(int argc, char* argv[]) {
         std::cout << "[+] Metodo Utilizado:    "
                   << (opt.mode == spritex::tools::DownsampleMode::Modal ? "Modal (Dominancia em Bloco)" :
                      (opt.mode == spritex::tools::DownsampleMode::Center ? "Center Pixel" : "Media RGB")) << "\n";
+        std::cout << "[+] Melhorias Retro:     "
+                  << (opt.autoCrop ? "[Auto-Crop] " : "")
+                  << (opt.celShade ? "[Cel-Shading Kuwahara] " : "")
+                  << (opt.posterize ? "[Posterize] " : "")
+                  << (opt.contrast > 1.05f || opt.saturation > 1.05f ? "[Cores Vivas] " : "")
+                  << (opt.despeckle ? "[Denoise] " : "")
+                  << (opt.outline ? "[Outline Preto] " : "") << "\n";
         std::cout << "[+] Matriz Salva:        " << outputFile << "\n";
         if (pngSaved) {
             std::cout << "[+] Preview PNG:         " << outputPng

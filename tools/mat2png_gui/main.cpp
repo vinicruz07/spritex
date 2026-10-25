@@ -37,25 +37,33 @@ constexpr int ID_TAB_MAT2PNG      = 1000;
 constexpr int ID_TAB_PNG2MAT      = 1001;
 
 // Tab 1: Matriz -> PNG
-constexpr int ID_BTN_PASTE        = 1002;
-constexpr int ID_BTN_FIX_MATRIX   = 1003;
-constexpr int ID_BTN_CROP_TAB1    = 1004;
-constexpr int ID_BTN_REMBG_TAB1   = 1005;
-constexpr int ID_BTN_CLEAR        = 1006;
-constexpr int ID_BTN_SAMPLE32     = 1007;
-constexpr int ID_BTN_SAMPLE16     = 1008;
-constexpr int ID_EDIT_MATRIX      = 1009;
+constexpr int ID_BTN_PASTE          = 1002;
+constexpr int ID_BTN_FIX_MATRIX     = 1003;
+constexpr int ID_BTN_CROP_TAB1      = 1004;
+constexpr int ID_BTN_REMBG_TAB1     = 1005;
+constexpr int ID_BTN_DESPECKLE_TAB1 = 1006;
+constexpr int ID_BTN_OUTLINE_TAB1   = 1007;
+constexpr int ID_BTN_CLEAR          = 1008;
+constexpr int ID_BTN_SAMPLE32       = 1009;
+constexpr int ID_BTN_SAMPLE16       = 1010;
+constexpr int ID_EDIT_MATRIX        = 1011;
 
 // Tab 2: PNG -> Pixel Art
-constexpr int ID_BTN_TAB2_IMPORT  = 1010;
-constexpr int ID_BTN_RES16        = 1011;
-constexpr int ID_BTN_RES32        = 1012;
-constexpr int ID_BTN_RES64        = 1013;
-constexpr int ID_CHK_TAB2_CROP    = 1014;
-constexpr int ID_BTN_TAB2_CROP    = 1015;
-constexpr int ID_BTN_TAB2_REMBG   = 1016;
-constexpr int ID_BTN_TAB2_COPYMAT = 1017;
-constexpr int ID_BTN_TAB2_TO_EDIT = 1018;
+constexpr int ID_BTN_TAB2_IMPORT    = 1012;
+constexpr int ID_BTN_RES16          = 1013;
+constexpr int ID_BTN_RES32          = 1014;
+constexpr int ID_BTN_RES64          = 1015;
+constexpr int ID_CHK_TAB2_CROP      = 1016;
+constexpr int ID_CHK_TAB2_CEL       = 1017;
+constexpr int ID_CHK_TAB2_VIBRANT   = 1018;
+constexpr int ID_CHK_TAB2_DESPECKLE = 1019;
+constexpr int ID_CHK_TAB2_OUTLINE   = 1020;
+constexpr int ID_BTN_TAB2_CROP      = 1021;
+constexpr int ID_BTN_TAB2_REMBG     = 1022;
+constexpr int ID_BTN_TAB2_DESPECKLE = 1023;
+constexpr int ID_BTN_TAB2_OUTLINE   = 1024;
+constexpr int ID_BTN_TAB2_COPYMAT   = 1025;
+constexpr int ID_BTN_TAB2_TO_EDIT   = 1026;
 
 // Shared Canvas Controls
 constexpr int ID_CANVAS           = 1030;
@@ -92,6 +100,8 @@ HWND g_hBtnPaste         = nullptr;
 HWND g_hBtnFix           = nullptr;
 HWND g_hBtnCropTab1      = nullptr;
 HWND g_hBtnRemBg1        = nullptr;
+HWND g_hBtnDespeckle1    = nullptr;
+HWND g_hBtnOutline1      = nullptr;
 HWND g_hBtnClear         = nullptr;
 HWND g_hBtnSample32      = nullptr;
 HWND g_hBtnSample16      = nullptr;
@@ -106,8 +116,14 @@ HWND g_hTab2BtnRes16     = nullptr;
 HWND g_hTab2BtnRes32     = nullptr;
 HWND g_hTab2BtnRes64     = nullptr;
 HWND g_hTab2ChkCrop      = nullptr;
+HWND g_hTab2ChkCel       = nullptr;
+HWND g_hTab2ChkVibrant   = nullptr;
+HWND g_hTab2ChkDespeckle = nullptr;
+HWND g_hTab2ChkOutline   = nullptr;
 HWND g_hTab2BtnCrop      = nullptr;
 HWND g_hTab2BtnRemBg     = nullptr;
+HWND g_hTab2BtnDespeckle = nullptr;
+HWND g_hTab2BtnOutline   = nullptr;
 HWND g_hTab2LblBgTip     = nullptr;
 HWND g_hTab2LblStats     = nullptr;
 HWND g_hTab2BtnCopyMat   = nullptr;
@@ -207,6 +223,9 @@ void UpdateResolutionButtonsUI(int res);
 void SetResolution(int res);
 void RemoveBackground();
 bool AutoCropMatrix(spritex::tools::Matrix& mat, int margin = 1);
+void ReprocessImportedImage();
+void ApplyDespeckleFilter();
+void ApplyOutlineFilter();
 void UpdateMatrixFromEditor();
 void ExportPNG(int scale);
 void CopyImageToClipboard();
@@ -379,12 +398,22 @@ LRESULT CALLBACK WndProcMain(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
             g_hBtnRemBg1 = CreateWindowExA(0, "BUTTON", "Rem. Fundo",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                218, 50, 85, 28, hWnd, (HMENU)ID_BTN_REMBG_TAB1, hInst, NULL);
+                194, 50, 76, 28, hWnd, (HMENU)ID_BTN_REMBG_TAB1, hInst, NULL);
             SendMessage(g_hBtnRemBg1, WM_SETFONT, (WPARAM)g_hFontUIBold, TRUE);
+
+            g_hBtnDespeckle1 = CreateWindowExA(0, "BUTTON", "Denoise",
+                WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                272, 50, 58, 28, hWnd, (HMENU)ID_BTN_DESPECKLE_TAB1, hInst, NULL);
+            SendMessage(g_hBtnDespeckle1, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
+
+            g_hBtnOutline1 = CreateWindowExA(0, "BUTTON", "Contorno",
+                WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                332, 50, 64, 28, hWnd, (HMENU)ID_BTN_OUTLINE_TAB1, hInst, NULL);
+            SendMessage(g_hBtnOutline1, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
 
             g_hBtnClear = CreateWindowExA(0, "BUTTON", "Limpar",
                 WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-                307, 50, 52, 28, hWnd, (HMENU)ID_BTN_CLEAR, hInst, NULL);
+                398, 50, 48, 28, hWnd, (HMENU)ID_BTN_CLEAR, hInst, NULL);
             SendMessage(g_hBtnClear, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
 
             g_hBtnSample32 = CreateWindowExA(0, "BUTTON", "Ex. 32x",
@@ -445,26 +474,60 @@ LRESULT CALLBACK WndProcMain(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 360, 140, 160, 30, hWnd, (HMENU)ID_BTN_RES64, hInst, NULL);
             SendMessage(g_hTab2BtnRes64, WM_SETFONT, (WPARAM)g_hFontUIBold, TRUE);
 
-            g_hTab2ChkCrop = CreateWindowExA(0, "BUTTON", "Auto-Enquadrar Silhueta (Cortar bordas vazias e ampliar)",
+            g_hTab2ChkCrop = CreateWindowExA(0, "BUTTON", "Auto-Enquadrar Silhueta (Cortar bordas vazias e centralizar)",
                 WS_CHILD | BS_AUTOCHECKBOX,
-                20, 178, 520, 24, hWnd, (HMENU)ID_CHK_TAB2_CROP, hInst, NULL);
-            SendMessage(g_hTab2ChkCrop, WM_SETFONT, (WPARAM)g_hFontUIBold, TRUE);
+                20, 168, 520, 22, hWnd, (HMENU)ID_CHK_TAB2_CROP, hInst, NULL);
+            SendMessage(g_hTab2ChkCrop, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
             SendMessage(g_hTab2ChkCrop, BM_SETCHECK, BST_CHECKED, 0);
 
-            g_hTab2BtnCrop = CreateWindowExA(0, "BUTTON", "Auto-Enquadrar Silhueta",
+            g_hTab2ChkCel = CreateWindowExA(0, "BUTTON", "Modo Cel-Shade (Achatar gradientes com filtro Kuwahara)",
+                WS_CHILD | BS_AUTOCHECKBOX,
+                20, 192, 520, 22, hWnd, (HMENU)ID_CHK_TAB2_CEL, hInst, NULL);
+            SendMessage(g_hTab2ChkCel, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
+            SendMessage(g_hTab2ChkCel, BM_SETCHECK, BST_CHECKED, 0);
+
+            g_hTab2ChkVibrant = CreateWindowExA(0, "BUTTON", "Cores Vivas DB32 (+25% saturacao e +20% contraste)",
+                WS_CHILD | BS_AUTOCHECKBOX,
+                20, 216, 520, 22, hWnd, (HMENU)ID_CHK_TAB2_VIBRANT, hInst, NULL);
+            SendMessage(g_hTab2ChkVibrant, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
+            SendMessage(g_hTab2ChkVibrant, BM_SETCHECK, BST_CHECKED, 0);
+
+            g_hTab2ChkDespeckle = CreateWindowExA(0, "BUTTON", "Limpeza de Ruido (Denoise de pixels orfaos isolados)",
+                WS_CHILD | BS_AUTOCHECKBOX,
+                20, 240, 520, 22, hWnd, (HMENU)ID_CHK_TAB2_DESPECKLE, hInst, NULL);
+            SendMessage(g_hTab2ChkDespeckle, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
+            SendMessage(g_hTab2ChkDespeckle, BM_SETCHECK, BST_CHECKED, 0);
+
+            g_hTab2ChkOutline = CreateWindowExA(0, "BUTTON", "Contorno Preto Retro (Silhueta arcade Token 1)",
+                WS_CHILD | BS_AUTOCHECKBOX,
+                20, 264, 520, 22, hWnd, (HMENU)ID_CHK_TAB2_OUTLINE, hInst, NULL);
+            SendMessage(g_hTab2ChkOutline, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
+            SendMessage(g_hTab2ChkOutline, BM_SETCHECK, BST_UNCHECKED, 0);
+
+            g_hTab2BtnCrop = CreateWindowExA(0, "BUTTON", "Enquadrar Silhueta",
                 WS_CHILD | BS_PUSHBUTTON,
-                20, 206, 255, 32, hWnd, (HMENU)ID_BTN_TAB2_CROP, hInst, NULL);
+                20, 292, 255, 28, hWnd, (HMENU)ID_BTN_TAB2_CROP, hInst, NULL);
             SendMessage(g_hTab2BtnCrop, WM_SETFONT, (WPARAM)g_hFontUIBold, TRUE);
 
-            g_hTab2BtnRemBg = CreateWindowExA(0, "BUTTON", "Remover Fundo Externo",
+            g_hTab2BtnRemBg = CreateWindowExA(0, "BUTTON", "Remover Fundo",
                 WS_CHILD | BS_PUSHBUTTON,
-                285, 206, 255, 32, hWnd, (HMENU)ID_BTN_TAB2_REMBG, hInst, NULL);
+                285, 292, 255, 28, hWnd, (HMENU)ID_BTN_TAB2_REMBG, hInst, NULL);
             SendMessage(g_hTab2BtnRemBg, WM_SETFONT, (WPARAM)g_hFontUIBold, TRUE);
 
+            g_hTab2BtnDespeckle = CreateWindowExA(0, "BUTTON", "Limpar Ruido",
+                WS_CHILD | BS_PUSHBUTTON,
+                20, 324, 255, 28, hWnd, (HMENU)ID_BTN_TAB2_DESPECKLE, hInst, NULL);
+            SendMessage(g_hTab2BtnDespeckle, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
+
+            g_hTab2BtnOutline = CreateWindowExA(0, "BUTTON", "Adicionar Contorno",
+                WS_CHILD | BS_PUSHBUTTON,
+                285, 324, 255, 28, hWnd, (HMENU)ID_BTN_TAB2_OUTLINE, hInst, NULL);
+            SendMessage(g_hTab2BtnOutline, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
+
             g_hTab2LblBgTip = CreateWindowExA(0, "STATIC",
-                "Dica: O Auto-Enquadramento amplia o personagem ocupando a tela com proporcao 1:1.\nO botao Remover Fundo apaga o fundo sem danificar reflexos brancos ou detalhes do sprite.",
+                "Dica: O Cel-Shade e Cores Vivas garantem planos limpos DB32. O Denoise remove 'sujeiras' 1x1.",
                 WS_CHILD,
-                20, 244, 520, 36, hWnd, NULL, hInst, NULL);
+                20, 356, 520, 24, hWnd, NULL, hInst, NULL);
             SendMessage(g_hTab2LblBgTip, WM_SETFONT, (WPARAM)g_hFontSmall, TRUE);
 
             g_hTab2LblStats = CreateWindowExA(0, "STATIC",
@@ -473,17 +536,17 @@ LRESULT CALLBACK WndProcMain(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 "  * Clique no botao acima para importar qualquer imagem PNG, JPG ou BMP.\r\n"
                 "  * O spritex vai auto-enquadrar e quantizar para a paleta DawnBringer 32!",
                 WS_CHILD,
-                20, 288, 520, 130, hWnd, NULL, hInst, NULL);
+                20, 384, 520, 130, hWnd, NULL, hInst, NULL);
             SendMessage(g_hTab2LblStats, WM_SETFONT, (WPARAM)g_hFontMono, TRUE);
 
             g_hTab2BtnCopyMat = CreateWindowExA(0, "BUTTON", "Copiar Matriz Gerada [Tokens]",
                 WS_CHILD | BS_PUSHBUTTON,
-                20, 426, 520, 36, hWnd, (HMENU)ID_BTN_TAB2_COPYMAT, hInst, NULL);
+                20, 522, 520, 34, hWnd, (HMENU)ID_BTN_TAB2_COPYMAT, hInst, NULL);
             SendMessage(g_hTab2BtnCopyMat, WM_SETFONT, (WPARAM)g_hFontUIBold, TRUE);
 
             g_hTab2BtnToEditor = CreateWindowExA(0, "BUTTON", "Abrir Matriz no Editor de Codigo (Aba 1)",
                 WS_CHILD | BS_PUSHBUTTON,
-                20, 470, 520, 36, hWnd, (HMENU)ID_BTN_TAB2_TO_EDIT, hInst, NULL);
+                20, 562, 520, 34, hWnd, (HMENU)ID_BTN_TAB2_TO_EDIT, hInst, NULL);
             SendMessage(g_hTab2BtnToEditor, WM_SETFONT, (WPARAM)g_hFontUI, TRUE);
 
             // ==========================================
@@ -565,13 +628,15 @@ LRESULT CALLBACK WndProcMain(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             SetWindowPos(g_hBtnTabPng2Mat, NULL, 200, 12, 175, 30, SWP_NOZORDER);
 
             // Tab 1 controls:
-            SetWindowPos(g_hBtnPaste, NULL, 20, 50, 48, 28, SWP_NOZORDER);
-            SetWindowPos(g_hBtnFix, NULL, 72, 50, 60, 28, SWP_NOZORDER);
-            SetWindowPos(g_hBtnCropTab1, NULL, 136, 50, 78, 28, SWP_NOZORDER);
-            SetWindowPos(g_hBtnRemBg1, NULL, 218, 50, 85, 28, SWP_NOZORDER);
-            SetWindowPos(g_hBtnClear, NULL, 307, 50, 52, 28, SWP_NOZORDER);
-            SetWindowPos(g_hBtnSample32, NULL, 363, 50, 68, 28, SWP_NOZORDER);
-            SetWindowPos(g_hBtnSample16, NULL, 435, 50, 68, 28, SWP_NOZORDER);
+            SetWindowPos(g_hBtnPaste, NULL, 20, 50, 44, 28, SWP_NOZORDER);
+            SetWindowPos(g_hBtnFix, NULL, 66, 50, 52, 28, SWP_NOZORDER);
+            SetWindowPos(g_hBtnCropTab1, NULL, 120, 50, 72, 28, SWP_NOZORDER);
+            SetWindowPos(g_hBtnRemBg1, NULL, 194, 50, 76, 28, SWP_NOZORDER);
+            SetWindowPos(g_hBtnDespeckle1, NULL, 272, 50, 58, 28, SWP_NOZORDER);
+            SetWindowPos(g_hBtnOutline1, NULL, 332, 50, 64, 28, SWP_NOZORDER);
+            SetWindowPos(g_hBtnClear, NULL, 398, 50, 48, 28, SWP_NOZORDER);
+            SetWindowPos(g_hBtnSample32, NULL, 448, 50, 52, 28, SWP_NOZORDER);
+            SetWindowPos(g_hBtnSample16, NULL, 502, 50, 52, 28, SWP_NOZORDER);
 
             int editorTop = 86;
             int editorHeight = height - 200;
@@ -580,24 +645,30 @@ LRESULT CALLBACK WndProcMain(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
             // Tab 2 controls:
             SetWindowPos(g_hTab2BtnImport, NULL, 20, 50, leftWidth, 36, SWP_NOZORDER);
-            SetWindowPos(g_hTab2LblFile, NULL, 20, 92, leftWidth, 20, SWP_NOZORDER);
-            SetWindowPos(g_hTab2LblResHeader, NULL, 20, 116, leftWidth, 20, SWP_NOZORDER);
+            SetWindowPos(g_hTab2LblFile, NULL, 20, 90, leftWidth, 18, SWP_NOZORDER);
+            SetWindowPos(g_hTab2LblResHeader, NULL, 20, 112, leftWidth, 18, SWP_NOZORDER);
 
             int resBtnW = (leftWidth - 20) / 3;
-            SetWindowPos(g_hTab2BtnRes16, NULL, 20, 140, resBtnW, 30, SWP_NOZORDER);
-            SetWindowPos(g_hTab2BtnRes32, NULL, 20 + resBtnW + 10, 140, resBtnW, 30, SWP_NOZORDER);
-            SetWindowPos(g_hTab2BtnRes64, NULL, 20 + 2 * (resBtnW + 10), 140, resBtnW, 30, SWP_NOZORDER);
+            SetWindowPos(g_hTab2BtnRes16, NULL, 20, 134, resBtnW, 28, SWP_NOZORDER);
+            SetWindowPos(g_hTab2BtnRes32, NULL, 20 + resBtnW + 10, 134, resBtnW, 28, SWP_NOZORDER);
+            SetWindowPos(g_hTab2BtnRes64, NULL, 20 + 2 * (resBtnW + 10), 134, resBtnW, 28, SWP_NOZORDER);
 
-            SetWindowPos(g_hTab2ChkCrop, NULL, 20, 178, leftWidth, 24, SWP_NOZORDER);
+            SetWindowPos(g_hTab2ChkCrop, NULL, 20, 168, leftWidth, 22, SWP_NOZORDER);
+            SetWindowPos(g_hTab2ChkCel, NULL, 20, 192, leftWidth, 22, SWP_NOZORDER);
+            SetWindowPos(g_hTab2ChkVibrant, NULL, 20, 216, leftWidth, 22, SWP_NOZORDER);
+            SetWindowPos(g_hTab2ChkDespeckle, NULL, 20, 240, leftWidth, 22, SWP_NOZORDER);
+            SetWindowPos(g_hTab2ChkOutline, NULL, 20, 264, leftWidth, 22, SWP_NOZORDER);
 
             int halfBtnW = (leftWidth - 10) / 2;
-            SetWindowPos(g_hTab2BtnCrop, NULL, 20, 206, halfBtnW, 32, SWP_NOZORDER);
-            SetWindowPos(g_hTab2BtnRemBg, NULL, 20 + halfBtnW + 10, 206, halfBtnW, 32, SWP_NOZORDER);
+            SetWindowPos(g_hTab2BtnCrop, NULL, 20, 292, halfBtnW, 28, SWP_NOZORDER);
+            SetWindowPos(g_hTab2BtnRemBg, NULL, 20 + halfBtnW + 10, 292, halfBtnW, 28, SWP_NOZORDER);
+            SetWindowPos(g_hTab2BtnDespeckle, NULL, 20, 324, halfBtnW, 28, SWP_NOZORDER);
+            SetWindowPos(g_hTab2BtnOutline, NULL, 20 + halfBtnW + 10, 324, halfBtnW, 28, SWP_NOZORDER);
 
-            SetWindowPos(g_hTab2LblBgTip, NULL, 20, 244, leftWidth, 36, SWP_NOZORDER);
-            SetWindowPos(g_hTab2LblStats, NULL, 20, 288, leftWidth, 130, SWP_NOZORDER);
-            SetWindowPos(g_hTab2BtnCopyMat, NULL, 20, 426, leftWidth, 36, SWP_NOZORDER);
-            SetWindowPos(g_hTab2BtnToEditor, NULL, 20, 470, leftWidth, 36, SWP_NOZORDER);
+            SetWindowPos(g_hTab2LblBgTip, NULL, 20, 356, leftWidth, 24, SWP_NOZORDER);
+            SetWindowPos(g_hTab2LblStats, NULL, 20, 384, leftWidth, 130, SWP_NOZORDER);
+            SetWindowPos(g_hTab2BtnCopyMat, NULL, 20, 522, leftWidth, 34, SWP_NOZORDER);
+            SetWindowPos(g_hTab2BtnToEditor, NULL, 20, 562, leftWidth, 34, SWP_NOZORDER);
 
             // Right side (Canvas & controls):
             SetWindowPos(g_hCanvas, NULL, rightLeft, 50, rightWidth, editorHeight + 36, SWP_NOZORDER);
@@ -638,7 +709,9 @@ LRESULT CALLBACK WndProcMain(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 SetTextColor(hdcStatic, COLOR_TEXT_EDIT);
             } else if (hStatic == g_hTab2LblBgTip) {
                 SetTextColor(hdcStatic, COLOR_TEXT_MUTED);
-            } else if (hStatic == g_hTab2ChkCrop) {
+            } else if (hStatic == g_hTab2ChkCrop || hStatic == g_hTab2ChkCel ||
+                       hStatic == g_hTab2ChkVibrant || hStatic == g_hTab2ChkDespeckle ||
+                       hStatic == g_hTab2ChkOutline) {
                 SetTextColor(hdcStatic, COLOR_TEXT_EDIT);
             } else {
                 SetTextColor(hdcStatic, COLOR_TEXT_EDIT);
@@ -669,44 +742,7 @@ LRESULT CALLBACK WndProcMain(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
                 if (GetOpenFileNameA(&ofn)) {
                     g_lastImportedFile = szFile;
-                    spritex::tools::QuantizerOptions qOpt;
-                    qOpt.targetWidth = g_targetResolution;
-                    qOpt.targetHeight = g_targetResolution;
-                    qOpt.mode = spritex::tools::DownsampleMode::Modal;
-                    qOpt.keyWhite = true;
-                    qOpt.outline = false;
-                    qOpt.despeckle = true;
-                    qOpt.autoCrop = (SendMessage(g_hTab2ChkCrop, BM_GETCHECK, 0, 0) == BST_CHECKED);
-                    qOpt.cropMargin = 1;
-
-                    auto tStart = std::chrono::high_resolution_clock::now();
-                    auto cRes = spritex::tools::ImageConverter::from_file(szFile, qOpt);
-                    auto tEnd = std::chrono::high_resolution_clock::now();
-                    double timeMs = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
-
-                    if (cRes.success) {
-                        std::string matStr = spritex::tools::MatrixParser::format_matrix(cRes.matrix);
-                        SetWindowTextA(g_hEditMatrix, matStr.c_str());
-                        UpdateMatrixFromEditor();
-
-                        if (g_targetResolution == 64 && g_currentScale > 8) {
-                            g_currentScale = 8;
-                            SendMessage(g_hComboScale, CB_SETCURSEL, 2, 0); // 8x
-                        } else if (g_targetResolution == 16 && g_currentScale < 16) {
-                            g_currentScale = 16;
-                            SendMessage(g_hComboScale, CB_SETCURSEL, 4, 0); // 16x
-                        }
-
-                        UpdateTab2Stats(szFile, cRes.originalWidth, cRes.originalHeight, g_targetResolution, cRes.uniqueColors, timeMs);
-
-                        std::stringstream ss;
-                        ss << "Imagem pixelizada: " << cRes.originalWidth << "x" << cRes.originalHeight
-                           << " px -> " << g_targetResolution << "x" << g_targetResolution
-                           << (qOpt.autoCrop ? " [Auto-Enquadrada] (" : " (") << cRes.uniqueColors << " cores DB32)";
-                        SetWindowTextA(g_hStatusPixel, ss.str().c_str());
-                    } else {
-                        MessageBoxA(hWnd, cRes.error.c_str(), "Erro na Conversao", MB_ICONERROR);
-                    }
+                    ReprocessImportedImage();
                 }
             } else if (wmId == ID_BTN_RES16) {
                 SetResolution(16);
@@ -714,31 +750,17 @@ LRESULT CALLBACK WndProcMain(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 SetResolution(32);
             } else if (wmId == ID_BTN_RES64) {
                 SetResolution(64);
-            } else if (wmId == ID_BTN_TAB2_CROP) {
-                // Auto-crop button in Tab 2
+            } else if ((wmId == ID_CHK_TAB2_CROP || wmId == ID_CHK_TAB2_CEL ||
+                        wmId == ID_CHK_TAB2_VIBRANT || wmId == ID_CHK_TAB2_DESPECKLE ||
+                        wmId == ID_CHK_TAB2_OUTLINE) && wmEvent == BN_CLICKED) {
                 if (!g_lastImportedFile.empty()) {
-                    spritex::tools::QuantizerOptions qOpt;
-                    qOpt.targetWidth = g_targetResolution;
-                    qOpt.targetHeight = g_targetResolution;
-                    qOpt.mode = spritex::tools::DownsampleMode::Modal;
-                    qOpt.keyWhite = true;
-                    qOpt.outline = false;
-                    qOpt.despeckle = true;
-                    qOpt.autoCrop = true;
-                    qOpt.cropMargin = 1;
-
-                    auto tStart = std::chrono::high_resolution_clock::now();
-                    auto cRes = spritex::tools::ImageConverter::from_file(g_lastImportedFile, qOpt);
-                    auto tEnd = std::chrono::high_resolution_clock::now();
-                    double timeMs = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
-
-                    if (cRes.success) {
-                        std::string matStr = spritex::tools::MatrixParser::format_matrix(cRes.matrix);
-                        SetWindowTextA(g_hEditMatrix, matStr.c_str());
-                        UpdateMatrixFromEditor();
-                        UpdateTab2Stats(g_lastImportedFile, cRes.originalWidth, cRes.originalHeight, g_targetResolution, cRes.uniqueColors, timeMs);
-                        SetWindowTextA(g_hStatusPixel, "Silhueta auto-enquadrada a partir da imagem original HD!");
-                    }
+                    ReprocessImportedImage();
+                }
+            } else if (wmId == ID_BTN_TAB2_CROP) {
+                if (!g_lastImportedFile.empty()) {
+                    SendMessage(g_hTab2ChkCrop, BM_SETCHECK, BST_CHECKED, 0);
+                    ReprocessImportedImage();
+                    SetWindowTextA(g_hStatusPixel, "Silhueta auto-enquadrada a partir da imagem original HD!");
                 } else if (g_matrixValid && !g_matrix.empty()) {
                     if (AutoCropMatrix(g_matrix, 1)) {
                         std::string matStr = spritex::tools::MatrixParser::format_matrix(g_matrix);
@@ -751,6 +773,10 @@ LRESULT CALLBACK WndProcMain(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 } else {
                     MessageBoxA(hWnd, "Nenhuma imagem ou matriz carregada para enquadrar.", "Atencao", MB_ICONWARNING);
                 }
+            } else if (wmId == ID_BTN_TAB2_DESPECKLE || wmId == ID_BTN_DESPECKLE_TAB1) {
+                ApplyDespeckleFilter();
+            } else if (wmId == ID_BTN_TAB2_OUTLINE || wmId == ID_BTN_OUTLINE_TAB1) {
+                ApplyOutlineFilter();
             } else if (wmId == ID_BTN_CROP_TAB1) {
                 // Auto-crop button in Tab 1 (Matrix editor)
                 if (g_matrixValid && !g_matrix.empty()) {
@@ -850,6 +876,8 @@ void SwitchTab(ActiveTab newTab) {
     if (g_hBtnFix) ShowWindow(g_hBtnFix, show1);
     if (g_hBtnCropTab1) ShowWindow(g_hBtnCropTab1, show1);
     if (g_hBtnRemBg1) ShowWindow(g_hBtnRemBg1, show1);
+    if (g_hBtnDespeckle1) ShowWindow(g_hBtnDespeckle1, show1);
+    if (g_hBtnOutline1) ShowWindow(g_hBtnOutline1, show1);
     if (g_hBtnClear) ShowWindow(g_hBtnClear, show1);
     if (g_hBtnSample32) ShowWindow(g_hBtnSample32, show1);
     if (g_hBtnSample16) ShowWindow(g_hBtnSample16, show1);
@@ -864,8 +892,14 @@ void SwitchTab(ActiveTab newTab) {
     if (g_hTab2BtnRes32) ShowWindow(g_hTab2BtnRes32, show2);
     if (g_hTab2BtnRes64) ShowWindow(g_hTab2BtnRes64, show2);
     if (g_hTab2ChkCrop) ShowWindow(g_hTab2ChkCrop, show2);
+    if (g_hTab2ChkCel) ShowWindow(g_hTab2ChkCel, show2);
+    if (g_hTab2ChkVibrant) ShowWindow(g_hTab2ChkVibrant, show2);
+    if (g_hTab2ChkDespeckle) ShowWindow(g_hTab2ChkDespeckle, show2);
+    if (g_hTab2ChkOutline) ShowWindow(g_hTab2ChkOutline, show2);
     if (g_hTab2BtnCrop) ShowWindow(g_hTab2BtnCrop, show2);
     if (g_hTab2BtnRemBg) ShowWindow(g_hTab2BtnRemBg, show2);
+    if (g_hTab2BtnDespeckle) ShowWindow(g_hTab2BtnDespeckle, show2);
+    if (g_hTab2BtnOutline) ShowWindow(g_hTab2BtnOutline, show2);
     if (g_hTab2LblBgTip) ShowWindow(g_hTab2LblBgTip, show2);
     if (g_hTab2LblStats) ShowWindow(g_hTab2LblStats, show2);
     if (g_hTab2BtnCopyMat) ShowWindow(g_hTab2BtnCopyMat, show2);
@@ -888,12 +922,23 @@ void UpdateTab2Stats(const std::string& filePath, int origW, int origH, int targ
     ssFile << "Arquivo Carregado: " << fileName << " (" << origW << "x" << origH << " px)";
     SetWindowTextA(g_hTab2LblFile, ssFile.str().c_str());
 
+    bool crop = (SendMessage(g_hTab2ChkCrop, BM_GETCHECK, 0, 0) == BST_CHECKED);
+    bool cel  = (SendMessage(g_hTab2ChkCel, BM_GETCHECK, 0, 0) == BST_CHECKED);
+    bool vib  = (SendMessage(g_hTab2ChkVibrant, BM_GETCHECK, 0, 0) == BST_CHECKED);
+    bool desp = (SendMessage(g_hTab2ChkDespeckle, BM_GETCHECK, 0, 0) == BST_CHECKED);
+    bool outl = (SendMessage(g_hTab2ChkOutline, BM_GETCHECK, 0, 0) == BST_CHECKED);
+
     std::stringstream ss;
     ss << "Estatisticas da Pixelizacao:\r\n\r\n"
        << "  * Resolucao Original:  " << origW << " x " << origH << " px (32-bit RGBA)\r\n"
        << "  * Pixel Art Gerada:    " << targetRes << " x " << targetRes << " (" << (targetRes * targetRes) << " tokens)\r\n"
        << "  * Cores DawnBringer32: " << uniqueColors << " / 32 cores unicas\r\n"
-       << "  * Algoritmo:           Modal Sampling + Auto-Crop CIE76\r\n"
+       << "  * Filtros Ativos:      "
+       << (crop ? "Enquadrar " : "")
+       << (cel ? "Cel-Shade " : "")
+       << (vib ? "Vibrante " : "")
+       << (desp ? "Denoise " : "")
+       << (outl ? "Outline " : "") << "\r\n"
        << "  * Tempo de Execucao:   " << std::fixed << std::setprecision(2) << timeMs << " ms";
     SetWindowTextA(g_hTab2LblStats, ss.str().c_str());
 }
@@ -964,6 +1009,93 @@ bool AutoCropMatrix(spritex::tools::Matrix& mat, int margin) {
 
     mat = newMat;
     return true;
+}
+
+// Reprocess the currently loaded image with active settings
+void ReprocessImportedImage() {
+    if (g_lastImportedFile.empty()) return;
+
+    spritex::tools::QuantizerOptions qOpt;
+    qOpt.targetWidth = g_targetResolution;
+    qOpt.targetHeight = g_targetResolution;
+    qOpt.mode = spritex::tools::DownsampleMode::Modal;
+    qOpt.keyWhite = true;
+    qOpt.cropMargin = 1;
+
+    qOpt.autoCrop = (SendMessage(g_hTab2ChkCrop, BM_GETCHECK, 0, 0) == BST_CHECKED);
+    qOpt.celShade = (SendMessage(g_hTab2ChkCel, BM_GETCHECK, 0, 0) == BST_CHECKED);
+    qOpt.celShadeRadius = 2;
+
+    bool vibrant = (SendMessage(g_hTab2ChkVibrant, BM_GETCHECK, 0, 0) == BST_CHECKED);
+    qOpt.saturation = vibrant ? 1.25f : 1.0f;
+    qOpt.contrast = vibrant ? 1.20f : 1.0f;
+
+    qOpt.despeckle = (SendMessage(g_hTab2ChkDespeckle, BM_GETCHECK, 0, 0) == BST_CHECKED);
+    qOpt.outline = (SendMessage(g_hTab2ChkOutline, BM_GETCHECK, 0, 0) == BST_CHECKED);
+
+    auto tStart = std::chrono::high_resolution_clock::now();
+    auto cRes = spritex::tools::ImageConverter::from_file(g_lastImportedFile, qOpt);
+    auto tEnd = std::chrono::high_resolution_clock::now();
+    double timeMs = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
+
+    if (cRes.success) {
+        std::string matStr = spritex::tools::MatrixParser::format_matrix(cRes.matrix);
+        SetWindowTextA(g_hEditMatrix, matStr.c_str());
+        UpdateMatrixFromEditor();
+
+        if (g_targetResolution == 64 && g_currentScale > 8) {
+            g_currentScale = 8;
+            SendMessage(g_hComboScale, CB_SETCURSEL, 2, 0); // 8x
+        } else if (g_targetResolution == 16 && g_currentScale < 16) {
+            g_currentScale = 16;
+            SendMessage(g_hComboScale, CB_SETCURSEL, 4, 0); // 16x
+        }
+
+        UpdateTab2Stats(g_lastImportedFile, cRes.originalWidth, cRes.originalHeight, g_targetResolution, cRes.uniqueColors, timeMs);
+
+        std::stringstream ss;
+        ss << "Pixel art atualizada: " << g_targetResolution << "x" << g_targetResolution
+           << (qOpt.autoCrop ? " [Enquadrado]" : "")
+           << (qOpt.celShade ? " [Cel-Shade]" : "")
+           << (vibrant ? " [Vibrante]" : "")
+           << (qOpt.outline ? " [Contorno]" : "")
+           << " (" << cRes.uniqueColors << " cores DB32)";
+        SetWindowTextA(g_hStatusPixel, ss.str().c_str());
+    } else {
+        MessageBoxA(g_hWndMain, cRes.error.c_str(), "Erro na Conversao", MB_ICONERROR);
+    }
+}
+
+// Remove orphan 1x1 noise pixels from active matrix
+void ApplyDespeckleFilter() {
+    if (!g_matrixValid || g_matrix.empty()) {
+        MessageBoxA(g_hWndMain, "Nenhuma matriz valida carregada para limpar ruido.", "Atencao", MB_ICONWARNING);
+        return;
+    }
+    if (spritex::tools::ColorQuantizer::apply_despeckle(g_matrix, 2)) {
+        std::string matStr = spritex::tools::MatrixParser::format_matrix(g_matrix);
+        SetWindowTextA(g_hEditMatrix, matStr.c_str());
+        UpdateMatrixFromEditor();
+        SetWindowTextA(g_hStatusPixel, "Filtro Denoise aplicado: pixels orfaos isolados eliminados!");
+    } else {
+        SetWindowTextA(g_hStatusPixel, "Nenhum pixel orfao detectado. A imagem ja esta limpa.");
+    }
+}
+
+// Add retro black outline (Token 1) around character silhouette
+void ApplyOutlineFilter() {
+    if (!g_matrixValid || g_matrix.empty()) {
+        MessageBoxA(g_hWndMain, "Nenhuma matriz valida carregada para aplicar contorno.", "Atencao", MB_ICONWARNING);
+        return;
+    }
+    if (spritex::tools::ColorQuantizer::apply_outline(g_matrix, 1)) {
+        std::string matStr = spritex::tools::MatrixParser::format_matrix(g_matrix);
+        SetWindowTextA(g_hEditMatrix, matStr.c_str());
+        UpdateMatrixFromEditor();
+        SetWindowTextA(g_hStatusPixel, "Contorno preto retro (Token 1) adicionado a silhueta!");
+    } else {
+        SetWindowTextA(g_hStatusPixel, "Nenhum contorno adicional pode ser aplicado.");
+    }
 }
 
 // Parse text from editor and update internal matrix state
@@ -1504,41 +1636,8 @@ void SetResolution(int res) {
 
     // 1. If an image was previously imported, re-process from original file at new resolution
     if (!g_lastImportedFile.empty()) {
-        spritex::tools::QuantizerOptions qOpt;
-        qOpt.targetWidth = res;
-        qOpt.targetHeight = res;
-        qOpt.mode = spritex::tools::DownsampleMode::Modal;
-        qOpt.keyWhite = true;
-        qOpt.outline = false;
-        qOpt.despeckle = true;
-        qOpt.autoCrop = (SendMessage(g_hTab2ChkCrop, BM_GETCHECK, 0, 0) == BST_CHECKED);
-        qOpt.cropMargin = 1;
-
-        auto tStart = std::chrono::high_resolution_clock::now();
-        auto cRes = spritex::tools::ImageConverter::from_file(g_lastImportedFile, qOpt);
-        auto tEnd = std::chrono::high_resolution_clock::now();
-        double timeMs = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
-
-        if (cRes.success) {
-            std::string matStr = spritex::tools::MatrixParser::format_matrix(cRes.matrix);
-            SetWindowTextA(g_hEditMatrix, matStr.c_str());
-            UpdateMatrixFromEditor();
-
-            if (res == 64 && g_currentScale > 8) {
-                g_currentScale = 8;
-                SendMessage(g_hComboScale, CB_SETCURSEL, 2, 0); // 8x
-            } else if (res == 16 && g_currentScale < 16) {
-                g_currentScale = 16;
-                SendMessage(g_hComboScale, CB_SETCURSEL, 4, 0); // 16x
-            }
-
-            UpdateTab2Stats(g_lastImportedFile, cRes.originalWidth, cRes.originalHeight, res, cRes.uniqueColors, timeMs);
-
-            std::stringstream ss;
-            ss << "Imagem re-pixelizada para " << res << "x" << res << " (" << cRes.uniqueColors << " cores DB32)";
-            SetWindowTextA(g_hStatusPixel, ss.str().c_str());
-            return;
-        }
+        ReprocessImportedImage();
+        return;
     }
 
     // 2. If no image was imported, but a valid matrix is in editor, resample using nearest-neighbor
